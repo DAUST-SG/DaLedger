@@ -21,7 +21,8 @@ DaLedger/
 │   ├── audit.ts                  # writeAudit() helper
 │   ├── http.ts                   # httpRouter: /intake/income(/refund), /intake/naboopay
 │   ├── crons.ts                  # scheduled: safetyNetSweep, monthlyDrafts
-│   └── migrations/               # ordered migrations (see DATABASE_SCHEMA.md)
+│   ├── seed.ts                   # accounts, categories, officers (see DATABASE_SCHEMA.md)
+│   └── ledger.ts                 # pure balance engine + entry rules (unit-tested)
 ├── src/                          # Frontend (React + Vite)
 │   ├── main.tsx                  # ConvexProvider + Router bootstrap
 │   ├── routes/

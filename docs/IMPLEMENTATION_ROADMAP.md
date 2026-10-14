@@ -34,7 +34,7 @@
 | 1 | Define all tables + indexes | `infra` | `convex/schema.ts` | 📋 |
 | 2 | Shared TS types | `chore` | `src/types.ts` | 📋 |
 | 3 | FCFA format/parse helpers | `feat` | `src/lib/fcfa.ts` | 📋 |
-| 4 | Seed 5 accounts + opening balances | `infra` | `convex/migrations/0005_seed_accounts.ts` | 📋 |
+| 4 | Seed 5 accounts + opening balances | `infra` | `convex/seed.ts` | 📋 |
 | 5 | Computed-balance live query | `feat` | `convex/balances.ts` | 📋 |
 
 **Definition of Done:**

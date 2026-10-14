@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-14
 - **Deciders:** Pikou (Lead, IT Committee)
+- **Delivered by:** ADR 0027 (the reversal flip alternates along the chain)
 
 ## Context
 

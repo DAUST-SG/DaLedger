@@ -9,7 +9,8 @@
 > ADR 0007's two-leg, per-account table, which also resolves the "open
 > sub-question" about transfers. The **storage decision still stands**: a reversal
 > is a near-copy of the original with `reversalOf` set, flipped by the −1 sign
-> rule. Read 0007 for the authoritative engine.
+> rule. Read 0007 for the authoritative engine. **ADR 0027** (proposed) refines
+> the flip so it alternates along the `reversalOf` chain, as ADR 0020 requires.
 
 ## Context
 

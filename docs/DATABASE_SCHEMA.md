@@ -227,16 +227,22 @@ POLICY guarded_transition ON transactions
 > serialises mutations, so the first attempt flips the status and wins and any
 > second attempt is a clean no-op — money moves exactly once.
 
-## Migrations
+## Schema changes and seed data
+
+Convex applies `convex/schema.ts` itself on every deploy, so there are no
+numbered migration files. Changes to tables that already hold data follow the
+`v.optional` → backfill → require pattern. Seed data lives in one file:
 
 ```text
 convex/
-└── migrations/
-    ├── 0001_init_core.ts          # accounts, transactions, categories, events
-    ├── 0002_users_auth.ts         # users table + Convex Auth wiring
-    ├── 0003_reconciliations.ts    # reconciliations + auditLog
-    ├── 0004_intake_indexes.ts     # (source, externalId, kind) index + in-mutation uniqueness, naboopayReference
-    ├── 0005_seed_accounts.ts      # 5 accounts + opening balances (cutover)
-    ├── 0006_seed_categories.ts    # starting category list
-    └── 0007_recurring.ts          # recurringTemplates + one-draft-per-month index (v1.1)
+├── schema.ts      # every table and index above
+└── seed.ts        # run once per deployment with `npx convex run`:
+                   #   seed:accounts    5 accounts + opening balances, starting categories
+                   #                    (never touches an existing row: ADR 0018)
+                   #   seed:addOfficer  create an officer with a starting password
+                   #   seed:addEvent    add an event tag
 ```
+
+`users.role` and `users.active` are optional in the Convex schema because Convex
+Auth inserts `users` rows itself; officer code treats a missing `active` as
+inactive, so an officer exists only once `seed:addOfficer` has created them.
