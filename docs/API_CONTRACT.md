@@ -96,17 +96,24 @@ Reverse a previously recorded income.
 
 Receive a signed Naboopay webhook. The handler reads the **raw body**, verifies `X-Signature`, then matches.
 
-**Request** (body as sent by Naboopay — `WebhookModel`)
+**Request** (body as sent by Naboopay, webhook payload v2 — ADR 0026; abridged)
 
 ```json
 {
-  "order_id": "order_9fA…",
+  "order_id": "550e8400-e29b-41d4-a716-446655440000",
+  "selected_payment_method": "wave",
   "amount": 253650,
+  "fees": 5073,
+  "fees_customer_side": true,
   "currency": "XOF",
-  "created_at": "2026-10-13T12:04:00",
-  "transaction_status": "paid"
+  "transaction_status": "paid",
+  "products": [{ "name": "Hoodie", "price": 84550, "quantity": 3 }],
+  "created_at": "2026-10-13T12:00:00Z",
+  "paid_at": "2026-10-13T12:04:00Z"
 }
 ```
+
+Webhooks fire when a transaction becomes paid. `transaction_status` is `paid` or `paid_and_blocked` (both treated as paid). Deliveries can repeat, so matching is idempotent. Refunds are performed in Naboopay (`GET /refund/{order_id}`), never by the tracker.
 
 The webhook **creates nothing** (ADR 0008): on a match it confirms, on a non-match it does nothing. Unmatched payments are surfaced later by the scheduled sweep after a grace window — not by this handler.
 

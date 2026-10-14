@@ -23,7 +23,7 @@ feat(intake): idempotent /intake/income with per-source key
 fix(balances): exclude committed withdrawals from totals
 chore(deps): bump convex to latest
 infra(schema): enforce (source, externalId, kind) uniqueness in-mutation
-docs(prd): clarify part_paid handling
+docs(prd): clarify payout sweep handling
 ```
 
 Format: `type(scope): short imperative summary`. Keep the subject ≤ 72 chars.

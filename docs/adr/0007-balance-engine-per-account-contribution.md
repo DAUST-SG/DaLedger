@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
+- **Amended by:** ADR 0026 (`provisional` removed)
 - **Supersedes:** the simplified single-account formula noted in ADR 0002
 
 ## Context
@@ -32,10 +33,9 @@ Then, applied uniformly:
    undoes both legs of a two-leg entry in one row.
 2. **Status gate** — a row contributes 0 unless "live". Live statuses:
    `confirmed`, `paid`, `needs_review`. Excluded (contribute 0): `committed`,
-   `draft`, `memo`, `skipped`, `provisional`.
+   `draft`, `memo`, `skipped`.
    (`needs_review` counts because it is settled, fully-known money awaiting a
-   label; `provisional` — a part_paid of unknown amount — does not. See
-   ADR 0013.)
+   label. ADR 0013's `provisional` was removed by ADR 0026.)
 
 `balance(X) = openingBalance(X) + Σ effect(t, X)` over all transactions.
 

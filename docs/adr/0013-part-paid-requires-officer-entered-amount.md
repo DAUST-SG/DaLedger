@@ -1,8 +1,11 @@
 # ADR 0013 — part_paid counts only after an officer enters the actual amount received
 
-- **Status:** Accepted
+- **Status:** Superseded by ADR 0026
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
+
+> **Superseded by ADR 0026.** Naboopay API v2 has no `part_paid` status, so the
+> `provisional` status and the enter-the-amount flow (`enterPartial`) are removed.
 
 ## Context
 
