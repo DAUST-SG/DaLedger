@@ -75,14 +75,14 @@ Reverse a previously recorded income.
 {
   "reversalId": "k1b…",
   "reversalOf": "jd7c8s…",
-  "amount": 253650,
-  "isReversal": true
+  "amount": 253650
 }
 ```
 
 > `amount` is always a **positive** integer (ADR 0007); the reversal's cancelling
-> effect comes from `isReversal`/`reversalOf` (the −1 sign rule, ADR 0002), not a
-> negative amount.
+> effect comes from the `reversalOf` link (the −1 sign rule, ADR 0002), not a
+> negative amount. The data model stores **only `reversalOf`** — there is no
+> `isReversal` column; a consumer derives "is a reversal" from `reversalOf != null`.
 
 **Response (error) — 404 Not Found**
 

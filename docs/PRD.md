@@ -70,10 +70,11 @@ Within 12 months, the SG runs entirely on Finance Tracker: officers record every
 
 ### 5.2 Manual entry
 - **Priority:** P0
-- **Description:** A phone-first form for all non-automatic movements; reason, amount, account, category required; event, receipt, date optional.
+- **Description:** A phone-first form for all non-automatic movements; reason, amount, account required; **category required only for `income`/`expense`** (direction-matched) and omitted for transfer, allocation, school_withdrawal, and both adjustment types (ADR 0009); event, receipt, date optional.
 - **Acceptance Criteria:**
   - [ ] The form will not save without a reason.
   - [ ] Amounts are whole FCFA (integer, positive); display uses spaces as thousands separators.
+  - [ ] Category is required and direction-matched for income/expense, and not shown for other types (ADR 0009).
   - [ ] Recent reasons/categories are suggested as the officer types.
 
 ### 5.3 Automatic income intake
