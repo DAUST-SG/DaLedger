@@ -1,6 +1,6 @@
 # ADR 0027 — The reversal sign alternates along the reversalOf chain
 
-- **Status:** Proposed (needs Pikou's sign-off)
+- **Status:** Accepted
 - **Date:** 2026-10-14
 - **Deciders:** Pikou (Lead, IT Committee)
 - **Amends:** ADR 0002, 0007 (the reversal flip). **Delivers:** ADR 0020.

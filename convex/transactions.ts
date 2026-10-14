@@ -141,6 +141,35 @@ export const markWithdrawalPaid = mutation({
   },
 });
 
+/**
+ * Cancel an approved-but-unpaid withdrawal that will not happen (ADR 0028).
+ * Guarded `committed → cancelled`; a second call is a no-op. It changes no
+ * balance (cancelled is not a live status) and clears the amount from the
+ * committed total shown under School. A reason is required and recorded in the
+ * audit entry.
+ */
+export const cancelWithdrawal = mutation({
+  args: { transactionId: v.id("transactions"), reason: v.string() },
+  returns: v.object({ id: v.id("transactions"), changed: v.boolean() }),
+  handler: async (ctx, args) => {
+    const officer = await currentOfficer(ctx);
+    const tx = await getOrThrow(ctx, args.transactionId, "transaction");
+    if (tx.type !== "school_withdrawal") throw new ConvexError("Only a school withdrawal can be cancelled.");
+    if (args.reason.trim() === "") throw new ConvexError("A reason is required.");
+    if (tx.status !== "committed") return { id: tx._id, changed: false }; // guarded no-op (ADR 0019)
+
+    await ctx.db.patch(tx._id, { status: "cancelled" });
+    await writeAudit(ctx, {
+      actor: officer._id,
+      action: "cancel_withdrawal",
+      targetId: tx._id,
+      before: { status: "committed" },
+      after: { status: "cancelled", reason: args.reason.trim() },
+    });
+    return { id: tx._id, changed: true };
+  },
+});
+
 /** Approved-but-unpaid withdrawals, listed under School on Home. */
 export const committedWithdrawals = query({
   args: {},

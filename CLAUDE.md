@@ -12,11 +12,11 @@ the path to production.
 
 ## 0. Ground rules (non-negotiable)
 
-1. **The ADRs are binding.** Every decision in `docs/adr/` (0001–0026) and every
+1. **The ADRs are binding.** Every decision in `docs/adr/` (0001–0028) and every
    term in `CONTEXT.md` is law. Code must match them. If you believe a decision
    is wrong, **do not silently deviate** — raise it with Pikou and, if changed,
-   write a **new superseding ADR** (next free number, e.g. `0026-…`, marking the
-   old one `Superseded by 0027`). The 26 decisions were reached deliberately;
+   write a **new superseding ADR** (next free number, e.g. `0029-…`, marking the
+   old one `Superseded by 0029`). The 28 decisions were reached deliberately;
    they rot the moment someone "just tweaks" the schema.
 2. **Nothing is silent, nothing is deleted, nothing moves money twice, every
    number traces back to an audited entry.** This is the spine of the whole
@@ -57,10 +57,10 @@ identity for `recordedBy` and the audit log).
 
 1. `README.md` — what we're building and the stack.
 2. `CONTEXT.md` — the glossary. Every term here has one canonical meaning.
-3. `docs/adr/` — all 26 ADRs. These are the decisions you must honour.
+3. `docs/adr/` — all 28 ADRs. These are the decisions you must honour.
 4. `docs/PRD.md` — product requirements & acceptance criteria.
 5. `docs/ARCHITECTURE.md` — components & data flows.
-6. `docs/DATABASE_SCHEMA.md` — the authoritative data model (7-status enum, the
+6. `docs/DATABASE_SCHEMA.md` — the authoritative data model (8-status enum, the
    balance engine, indexes).
 7. `docs/API_DESIGN.md` + `docs/API_CONTRACT.md` — the HTTP/function surface.
 8. `docs/TECHNICAL_ROADMAP.md` + `docs/IMPLEMENTATION_ROADMAP.md` — file-level map

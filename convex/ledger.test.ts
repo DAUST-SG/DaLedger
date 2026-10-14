@@ -23,46 +23,46 @@ describe("effect: per-account table (ADR 0007)", () => {
     ["adjustment_up", A, 1000],
     ["adjustment_down", A, -1000],
   ] as const)("%s on its account", (type, account, expected) => {
-    expect(effect(tx({ type }), account)).toBe(expected);
-    expect(effect(tx({ type }), B)).toBe(0);
+    expect(effect(tx({ type }), account, 1)).toBe(expected);
+    expect(effect(tx({ type }), B, 1)).toBe(0);
   });
 
   test("allocation raises School only", () => {
-    expect(effect(tx({ type: "allocation", accountId: S }), S)).toBe(1000);
-    expect(effect(tx({ type: "allocation", accountId: S }), A)).toBe(0);
+    expect(effect(tx({ type: "allocation", accountId: S }), S, 1)).toBe(1000);
+    expect(effect(tx({ type: "allocation", accountId: S }), A, 1)).toBe(0);
   });
 
   test("transfer moves both legs and nets to zero", () => {
     const t = tx({ type: "transfer", accountId: A, toAccountId: B });
-    expect(effect(t, A)).toBe(-1000);
-    expect(effect(t, B)).toBe(1000);
-    expect(effect(t, A) + effect(t, B)).toBe(0);
+    expect(effect(t, A, 1)).toBe(-1000);
+    expect(effect(t, B, 1)).toBe(1000);
+    expect(effect(t, A, 1) + effect(t, B, 1)).toBe(0);
   });
 
   test("paid withdrawal: School down, destination up", () => {
     const t = tx({ type: "school_withdrawal", status: "paid", accountId: S, toAccountId: A });
-    expect(effect(t, S)).toBe(-1000);
-    expect(effect(t, A)).toBe(1000);
+    expect(effect(t, S, 1)).toBe(-1000);
+    expect(effect(t, A, 1)).toBe(1000);
   });
 
   test("a toAccountId on a one-leg type is ignored", () => {
-    expect(effect(tx({ type: "income", toAccountId: B }), B)).toBe(0);
+    expect(effect(tx({ type: "income", toAccountId: B }), B, 1)).toBe(0);
   });
 });
 
-describe("effect: status gate (ADR 0007, 0026)", () => {
+describe("effect: status gate (ADR 0007, 0026, 0028)", () => {
   test.each(["confirmed", "paid", "needs_review"] as const)("%s counts", (status) => {
-    expect(effect(tx({ status }), A)).toBe(1000);
+    expect(effect(tx({ status }), A, 1)).toBe(1000);
   });
 
-  test.each(["committed", "draft", "memo", "skipped"] as const)("%s contributes 0", (status) => {
-    expect(effect(tx({ status }), A)).toBe(0);
+  test.each(["committed", "draft", "memo", "skipped", "cancelled"] as const)("%s contributes 0", (status) => {
+    expect(effect(tx({ status }), A, 1)).toBe(0);
   });
 
   test("committed withdrawal moves nothing on either leg", () => {
     const t = tx({ type: "school_withdrawal", status: "committed", accountId: S, toAccountId: A });
-    expect(effect(t, S)).toBe(0);
-    expect(effect(t, A)).toBe(0);
+    expect(effect(t, S, 1)).toBe(0);
+    expect(effect(t, A, 1)).toBe(0);
   });
 });
 
@@ -74,7 +74,7 @@ describe("effect: reversal flip (ADR 0002)", () => {
     const original = tx({ type, accountId: type === "allocation" || type === "school_withdrawal" ? S : A, toAccountId: B, status: type === "school_withdrawal" ? "paid" : "confirmed" });
     const reversal = { ...original, reversalOf: ORIGINAL };
     for (const account of [A, B, S]) {
-      expect(effect(original, account) + effect(reversal, account)).toBe(0);
+      expect(effect(original, account, 1) + effect(reversal, account, -1)).toBe(0);
     }
   });
 

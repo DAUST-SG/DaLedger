@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
+- **Amended by:** ADR 0028 (a `committed` withdrawal may instead be `cancelled`)
 
 ## Context
 

@@ -13,7 +13,7 @@ export const txType = v.union(
   v.literal("adjustment_down"),
 );
 
-// ADR 0003, 0007, 0011, 0012, 0026 (7 statuses; `provisional` removed)
+// ADR 0003, 0007, 0011, 0012, 0026, 0028 (8 statuses; `provisional` removed, `cancelled` added)
 export const txStatus = v.union(
   v.literal("confirmed"),
   v.literal("needs_review"),
@@ -22,6 +22,7 @@ export const txStatus = v.union(
   v.literal("draft"),
   v.literal("memo"),
   v.literal("skipped"),
+  v.literal("cancelled"), // an approved withdrawal that will not happen (ADR 0028)
 );
 
 export const accountKey = v.union(

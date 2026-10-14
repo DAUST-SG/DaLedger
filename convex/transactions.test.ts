@@ -137,6 +137,25 @@ describe("school withdrawal lifecycle (ADR 0003, 0019)", () => {
     expect(second.changed).toBe(false);
     expect(await balances()).toMatchObject({ school: 70_000, om: 30_000, committed: 0, total: 45_000 });
   });
+
+  test("an approved withdrawal can be cancelled; it changes no balance (ADR 0028)", async () => {
+    const { as, acc, balances } = await setup();
+    const { id } = await as.mutation(api.transactions.create, {
+      type: "school_withdrawal", amount: 30_000, accountId: acc.school, reason: "Gala budget",
+    });
+    expect(await balances()).toMatchObject({ school: 100_000, committed: 30_000 });
+
+    const first = await as.mutation(api.transactions.cancelWithdrawal, { transactionId: id, reason: "Gala cancelled" });
+    const second = await as.mutation(api.transactions.cancelWithdrawal, { transactionId: id, reason: "again" });
+    expect(first.changed).toBe(true);
+    expect(second.changed).toBe(false); // guarded no-op
+    expect(await balances()).toMatchObject({ school: 100_000, committed: 0, total: 15_000 });
+
+    // A cancelled withdrawal can no longer be marked paid.
+    const paid = await as.mutation(api.transactions.markWithdrawalPaid, { transactionId: id, toAccountId: acc.om });
+    expect(paid.changed).toBe(false);
+    expect(await balances()).toMatchObject({ school: 100_000, om: 0 });
+  });
 });
 
 describe("reversals (ADR 0002, 0020)", () => {

@@ -26,11 +26,13 @@ const TWO_LEG = new Set(["transfer", "school_withdrawal"]);
 
 /**
  * Signed effect of one transaction on one account (ADR 0002, 0007).
- * `flip` is the row's reversal sign from `reversalFlip`: −1 for a reversal, +1 for
- * a reversal of a reversal, and so on, so the chain original ← reversal ←
- * reversal-of-reversal nets back to the original (ADR 0020).
+ * `flip` is **required** (ADR 0027) and must come from `reversalFlip`: −1 for a
+ * reversal, +1 for a reversal of a reversal, and so on, so the chain
+ * original ← reversal ← reversal-of-reversal nets back to the original (ADR 0020).
+ * It is not defaulted on purpose — a naïve `reversalOf ? -1 : 1` is wrong for
+ * chains of depth ≥ 2, so callers are forced to pass the chain-aware value.
  */
-export function effect(tx: Tx, accountId: string, flip: 1 | -1 = tx.reversalOf ? -1 : 1): number {
+export function effect(tx: Tx, accountId: string, flip: 1 | -1): number {
   if (!LIVE_STATUSES.has(tx.status)) return 0;
   let e = 0;
   if (tx.accountId === accountId) e += MAIN_SIGN[tx.type] * tx.amount;

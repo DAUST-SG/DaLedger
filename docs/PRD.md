@@ -66,7 +66,7 @@ Within 12 months, the SG runs entirely on Finance Tracker: officers record every
   - [ ] A transaction entered on a phone updates the correct balance on every device immediately.
   - [ ] A transfer does not change the total held by the SG (it is strictly equal-in/equal-out; a payout fee is a separate expense, ADR 0015).
   - [ ] A reversal restores the balance with no special-case logic, and nets to zero inside its own category/event (ADR 0002); a target has at most one active reversal and double-taps apply it once (ADR 0019, 0020).
-  - [ ] `committed`, `draft`, `skipped`, and `memo` entries are excluded from balances; `confirmed`, `paid`, and `needs_review` count (ADR 0007).
+  - [ ] `committed`, `draft`, `skipped`, `memo`, and `cancelled` entries are excluded from balances; `confirmed`, `paid`, and `needs_review` count (ADR 0007, 0028).
 
 ### 5.2 Manual entry
 - **Priority:** P0

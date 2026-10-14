@@ -106,9 +106,10 @@ withdrawal|paid]].
 ### Contribution
 The **signed effect** of one entry on one account `X`, from a per-account table (two-leg
 types like [[transfer]] and paid [[school withdrawal]] hit `accountId` negative
-and `toAccountId` positive), then a −1 flip if it is a [[reversal]], then a
-status gate. This single rule is why the balance formula needs no special case
-for reversals. See ADR 0007 for the full table.
+and `toAccountId` positive), then the **chain-alternating reversal flip** (−1 per
+`reversalOf` link, so a reversal is −1 and a reversal-of-reversal +1 — ADR 0027),
+then a status gate. This single rule is why the balance formula needs no special
+case for reversals. See ADR 0007 for the full table.
 
 ### Opening balance
 An account's verified balance at cutover — a measured fact, stored as a field and
@@ -136,10 +137,16 @@ never moves twice. Applies to all in-place edits. See ADR 0019.
 
 ### Live status
 A status that counts toward balances: `confirmed`, `paid`, `needs_review`.
-`committed`, `draft`, `memo`, and `skipped` contribute 0. Note
+`committed`, `draft`, `memo`, `skipped`, and `cancelled` contribute 0. Note
 [[Needs-review]] money **does** count — it is settled, fully-known money awaiting
 a label. Full status set:
-`confirmed | needs_review | committed | paid | draft | memo | skipped`.
+`confirmed | needs_review | committed | paid | draft | memo | skipped | cancelled`.
+
+### Cancelled (withdrawal state)
+An approved-but-unpaid [[school withdrawal]] that will not happen, ended by a
+guarded `committed → cancelled` transition (reason required, audited). Contributes
+0 and is dropped from the committed amount shown under School. Not a [[reversal]]
+(a committed withdrawal moved no money). See ADR 0028.
 
 ### Event view (all-time) vs report by-event (period)
 Two reconciling views of an event's net: the **Event view** is all-time (the
