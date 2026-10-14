@@ -103,8 +103,8 @@ A school withdrawal approved by the university but not yet paid. Displayed under
 the School balance; contributes to no balance until it becomes [[school
 withdrawal|paid]].
 
-### Contribution (signed effect)
-The effect of one entry on one account `X`, from a per-account table (two-leg
+### Contribution
+The **signed effect** of one entry on one account `X`, from a per-account table (two-leg
 types like [[transfer]] and paid [[school withdrawal]] hit `accountId` negative
 and `toAccountId` positive), then a −1 flip if it is a [[reversal]], then a
 status gate. This single rule is why the balance formula needs no special case

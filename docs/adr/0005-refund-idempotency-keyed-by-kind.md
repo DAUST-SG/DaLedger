@@ -32,9 +32,10 @@ each-idempotent records.
 
 ## Consequences
 
-- The unique index `idx_tx_source_external` becomes
-  `(source, externalId, kind)`. `kind` is a new discriminator (sale vs refund);
-  it is independent of `type`/`reversalOf` and exists to scope idempotency.
+- The idempotency key `idx_tx_source_external` becomes
+  `(source, externalId, kind)`, enforced **in-mutation** (Convex has no unique
+  indexes — see ADR 0025). `kind` is a new discriminator (sale vs refund); it is
+  independent of `type`/`reversalOf` and exists to scope idempotency.
 - A retried refund finds its own `refund` row already present and does nothing —
   exactly one reversal.
 - A refund for which no matching `income` exists has nothing to reverse; route

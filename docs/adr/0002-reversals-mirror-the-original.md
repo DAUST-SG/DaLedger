@@ -1,8 +1,15 @@
 # ADR 0002 — A reversal mirrors the original entry and flips via a sign rule
 
-- **Status:** Accepted
+- **Status:** Accepted — balance-formula portion **superseded by ADR 0007**
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
+
+> **Partial supersession:** the single-account contribution formula below
+> (`directionOfType(type) × amount × (reversalOf ? −1 : +1)`) is replaced by
+> ADR 0007's two-leg, per-account table, which also resolves the "open
+> sub-question" about transfers. The **storage decision still stands**: a reversal
+> is a near-copy of the original with `reversalOf` set, flipped by the −1 sign
+> rule. Read 0007 for the authoritative engine.
 
 ## Context
 

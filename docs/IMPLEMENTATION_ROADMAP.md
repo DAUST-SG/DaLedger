@@ -7,6 +7,13 @@
 | **Total Sprints** | 8 |
 | **Sprint Length** | 1 week <!-- assumed --> |
 
+> **Sprints → PRD milestones:** the 8 sprints deliver the PRD's 7 milestones.
+> **M1 spans two sprints** — Sprint 1 (Foundation & schema) + Sprint 2 (Auth &
+> manual entry, which carries the M1 acceptance) — then Sprint 3 → M2,
+> Sprint 4 → M3, Sprint 5 → M4, Sprint 6 → M5, Sprint 7 → M6, Sprint 8 → M7. So
+> the overall schedule is ~8 weeks (one week past the earliest per-milestone
+> dates); PRD §8 carries the aligned dates.
+
 ## Status Legend
 
 | Symbol | Meaning |
@@ -122,10 +129,14 @@
 | 3 | Match by `naboopayReference`; no action on no-match | `feat` | `convex/http.ts` | 📋 |
 | 4 | Safety-net sweep cron: grace window, dedupe by `order_id`, self-heal; `part_paid` → provisional (ADR 0008,0013) | `infra` | `convex/crons.ts` | ⏸ |
 | 5 | Auto-reconcile Naboopay balance via `GET /account/` | `feat` | `convex/naboopay.ts`, `convex/reconciliations.ts` | ⏸ |
+| 6 | Manual payout/fee entry: `transactions.recordPayout` → net transfer + "Provider fees" expense (ADR 0015) | `feat` | `convex/transactions.ts`, `src/routes/AddTransaction.tsx` | 📋 |
+| 7 | Resolve a `provisional` part_paid: `transactions.enterPartial` (officer-entered amount → confirmed income) (ADR 0013) | `feat` | `convex/transactions.ts`, `src/routes/Review.tsx` | 📋 |
 
 **Definition of Done:**
 - [ ] Valid signed webhook accepted; tampered body rejected; webhook creates no record.
 - [ ] A paid payment unmatched after the grace window appears once in Needs-review; `part_paid` becomes a balance-excluded `provisional` awaiting an officer-entered amount.
+- [ ] A Naboopay payout with a fee is recorded as a net transfer + a "Provider fees" expense (ADR 0015).
+- [ ] An officer can enter the actual amount on a `provisional`, turning it into counted income (ADR 0013).
 - [ ] *(Blocked on a valid Naboopay **server API key** for sweep + balance read.)*
 
 ---
@@ -181,6 +192,8 @@
 - [ ] Naboopay webhook matching — Sprint 6
 - [ ] Safety-net sweep — Sprint 6 (⏸ server key)
 - [ ] Auto-reconcile Naboopay balance — Sprint 6 (⏸ server key)
+- [ ] Manual payout/fee entry (`recordPayout`) — Sprint 6
+- [ ] Resolve part_paid provisional (`enterPartial`) — Sprint 6
 - [ ] End-of-term review report — Sprint 7
 - [ ] Offline reconnect (native) — Sprint 7
 - [ ] Recurring expense templates (v1.1) — Sprint 8

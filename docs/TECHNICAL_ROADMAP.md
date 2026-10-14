@@ -12,7 +12,7 @@ DaLedger/
 │   ├── auth.ts                   # currentOfficer() helper, guards
 │   ├── accounts.ts               # account queries, opening-balance seed
 │   ├── balances.ts               # computed-balance live queries
-│   ├── transactions.ts           # create / reverse / markWithdrawalPaid / list
+│   ├── transactions.ts           # create / reverse / markWithdrawalPaid / recordPayout / enterPartial / list
 │   ├── review.ts                 # needs-review inbox query + label mutation
 │   ├── reconciliations.ts        # reconcile mutation + freshness query
 │   ├── reports.ts                # term report aggregation query
@@ -123,6 +123,8 @@ export const asOf = query(async (ctx, args: { date: number }): Promise<BalancesV
 export const create = mutation(async (ctx, args: CreateTransactionInput): Promise<{ id: string; newBalance: number }> => {});
 export const reverse = mutation(async (ctx, args: { transactionId: string; reason: string }): Promise<{ reversalId: string }> => { /* ADR 0020: no-op if target already has an active reversal */ });
 export const markWithdrawalPaid = mutation(async (ctx, args: { transactionId: string; toAccountId: string }): Promise<{ id: string }> => { /* ADR 0019: guarded committed->paid, no-op otherwise */ });
+export const recordPayout = mutation(async (ctx, args: { fromAccountId: string; toAccountId: string; grossOut: number; netIn: number; reason: string; occurredAt?: number }): Promise<{ transferId: string; feeExpenseId: string | null }> => { /* ADR 0015: net transfer + "Provider fees" expense for (grossOut - netIn) */ });
+export const enterPartial = mutation(async (ctx, args: { provisionalId: string; amountReceived: number }): Promise<{ id: string }> => { /* ADR 0013: guarded provisional->confirmed with officer-entered amount */ });
 export const list = query(async (ctx, args: { filter?: Partial<Record<"accountId"|"categoryId"|"eventId"|"source"|"type", string>>; from?: number; to?: number; cursor?: string }): Promise<PaginatedResponse<Transaction>> => {});
 
 // convex/reports.ts
@@ -266,7 +268,7 @@ App (ConvexProvider, Router)
 5. `http.ts` intake (income + refund) with idempotency (M2).
 6. Review inbox + filters + CSV + Event view (M3).
 7. Reconciliation + audit log (M4).
-8. `naboopay.ts` verify/sweep/balance + webhook route + cron (M5).
+8. `naboopay.ts` verify/sweep/balance + webhook route + cron, plus manual `recordPayout` (net transfer + fee expense) and `enterPartial` (resolve provisional) (M5).
 9. `reports.term` + Report page (M6).
 10. `recurring.ts` + cron + Recurring page (M7 / v1.1).
 11. Edge cases: `part_paid`, refunds, offline reconnect, empty/loading/error states.
