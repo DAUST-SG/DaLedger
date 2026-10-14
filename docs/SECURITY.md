@@ -60,6 +60,7 @@
 
 - **Input validation:** every intake field validated — `amount` a positive integer, required fields present, `source` matches the key; reject with `422 VALIDATION`.
 - **Idempotency:** `(source, externalId, kind)` uniqueness makes retries safe and blocks duplicate injection.
+- **Guarded transitions:** every in-place status change acts only from its expected current status and no-ops otherwise, and a target has at most one active reversal — so double-taps, retries, and concurrent officers never double-move money (ADR 0019, 0020).
 - **Rate limiting:** per-key limits on intake; paginated, scheduled outbound calls respect Naboopay's 100 req/60 s.
 - **CORS:** the SPA origin is allow-listed for the Convex client; intake/webhook endpoints are server-to-server and not CORS-exposed to browsers.
 - **Webhook verification:** compute HMAC-SHA256 over the **raw request body** (via `request.text()`), compare with a constant-time check; never verify against a re-serialized object (whitespace/key-order differences cause silent failures).

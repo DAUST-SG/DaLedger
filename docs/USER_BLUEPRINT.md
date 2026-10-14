@@ -62,7 +62,7 @@
 | Step | Screen/Page | What user does | What happens next | Notes |
 |------|-------------|----------------|-------------------|-------|
 | 1 | `/report` | Chooses the term period | Sees totals by category/event | Reproduces the ledger |
-| 2 | `/report` | Reviews School movement & reconcile history | Submits the term review | Minutes, not days |
+| 2 | `/report` | Reviews movement reconciliation, School movement & reconcile history | Submits the term review | start + movements = end proves out (ADR 0021); period by `occurredAt` (ADR 0016) |
 
 ---
 
@@ -75,7 +75,7 @@
 | Add transaction | `/add` | Manual entry form | Officer P1–P2 |
 | Needs review | `/review` | Unlabelled, unmatched, drafts | Officer P2–P3 |
 | Transactions | `/transactions` | Full list, filters, CSV, audit view | Officer P2 |
-| Event view | `/events/:id` | Per-event rollup | Officer P2 |
+| Event view | `/events/:id` | Per-event rollup (all-time, labelled; ADR 0022) | Officer P2 |
 | Reconcile | `/reconcile` | Compare & adjust; cutover | Treasurer P1–P2 |
 | Review report | `/report` | Term report | Treasurer P3 |
 | Recurring | `/recurring` | Templates (v1.1) | Officer P3 |
@@ -96,6 +96,10 @@
 | Stale reconcile (freshness) | > 7 days since check | `/` Home | Date highlighted as a nudge |
 | Stale reconcile (back-dating) | Back-dated entry lands ≤ last check | `/` Home | Account flagged "needs re-checking" (ADR 0010) |
 | Lost Naboopay `order_id` | Backend didn't persist it | `/review` | Payment surfaces as unmatched; resolve manually |
+| Withdrawal exceeds School | Paid withdrawal > remaining receivable | `/add` → `/` Home | Soft warning at entry; negative School flagged on Home; not blocked (ADR 0017) |
+| Opening balance wrong | Miscount / late university statement | `/reconcile` | Cutover-dated adjustment, never a silent field edit (ADR 0018) |
+| Double-tap a one-time action | Two "mark paid" / "confirm" / "reverse" | current screen | Guarded transition applies once; the rest no-op (ADR 0019, 0020) |
+| Cross-term event net differs | Event spans two terms | `/events/:id` vs `/report` | Event view = all-time, report = this period; both labelled (ADR 0022) |
 
 ---
 

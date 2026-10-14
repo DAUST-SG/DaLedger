@@ -18,6 +18,7 @@
 4. **Whole FCFA integers** — amounts are positive integers; non-integer or non-positive amounts are rejected.
 5. **Never delete** — refunds and corrections are reversals (`reversalOf`), never deletions.
 6. **Least authority** — each source has its own key so one can be revoked without affecting the others.
+7. **Guarded, exactly-once transitions** — every in-place status change (mark paid, confirm/skip draft, assign category, enter partial, reverse) acts only from its expected current status and is a no-op otherwise, so double-taps and concurrent officers apply it once (ADR 0019, 0020).
 
 ## Authentication
 
@@ -57,15 +58,16 @@ Content-Type: application/json
 
 | Operation | Function | Description | Auth |
 |-----------|----------|-------------|------|
-| List balances | `balances.list` (query) | Live computed balances per account + SG total + School | Session |
+| List balances | `balances.list` (query) | Live computed balances per account + SG total + School; `balanceAsOf(date)` for point-in-time (ADR 0016) | Session |
+| Event view | `reports.event` (query) | **All-time** income/expense/net for one event, by category (ADR 0022) | Session |
 | List transactions | `transactions.list` (query) | Filtered, paginated ledger | Session |
 | Create transaction | `transactions.create` (mutation) | Manual income/expense/transfer/allocation/withdrawal/`adjustment_up`/`adjustment_down` | Session |
-| Reverse transaction | `transactions.reverse` (mutation) | Create a `reversalOf` near-copy (same type/category/event, flipped by sign rule) | Session |
-| Mark withdrawal paid | `transactions.markWithdrawalPaid` (mutation) | Edit the one row `committed` → `paid` (ADR 0003) | Session |
+| Reverse transaction | `transactions.reverse` (mutation) | Create a `reversalOf` near-copy (same type/category/event, flipped by sign rule); at most one active reversal per target, no-op if already reversed (ADR 0020) | Session |
+| Mark withdrawal paid | `transactions.markWithdrawalPaid` (mutation) | Guarded `committed` → `paid`, no-op otherwise (ADR 0003, 0019) | Session |
 | Record payout | `transactions.recordPayout` (mutation) | Net transfer + "Provider fees" expense from gross-out/net-in (ADR 0015) | Session |
 | Review inbox | `review.list` (query) | Unlabelled, unmatched, drafts | Session |
 | Reconcile | `reconciliations.create` (mutation) | Record a check + optional adjustment | Session |
-| Review report | `reports.term` (query) | Period totals by category/event | Session |
+| Review report | `reports.term` (query) | **Period-scoped** (by `occurredAt`) totals by category/event, start/end `balanceAsOf`, full movement reconciliation, School movement, reconciliation history (ADR 0016, 0021) | Session |
 
 ## Error Responses
 

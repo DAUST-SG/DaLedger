@@ -44,7 +44,7 @@
 | `status` | enum | not null | `confirmed`\|`needs_review`\|`committed`\|`paid`\|`draft`\|`memo`\|`skipped`\|`provisional` (see status table below) |
 | `receiptUrl` | string | null | Optional photo/PDF |
 | `recordedBy` | ref → users / string | not null | Officer id, or source name for automatic |
-| `reversalOf` | ref → transactions | null | The transaction this one cancels |
+| `reversalOf` | ref → transactions | null | The transaction this one cancels. A target has **at most one active reversal**; un-reverse by reversing the reversal (ADR 0020) |
 | `recurringId` | ref → recurringTemplates | null | Template that generated this draft; unique with due month |
 | `createdAt` | timestamp | not null | When the record was created in the app |
 
@@ -70,6 +70,16 @@ adjustment_down/allocation act on `accountId`; `transfer` and paid
 multiplied by −1 when `reversalOf` is set, then gated to 0 unless the status
 counts (table above). The School receivable uses the same engine:
 `allocations − paid withdrawals`.
+
+**Point-in-time balance (ADR 0016).** Reports need the balance an account held on
+a past date: `balanceAsOf(X, date) = openingBalance(X) + Σ effect(t, X)` for every
+live `t` with `t.occurredAt ≤ date`. Reports scope by **`occurredAt`, not
+`createdAt`**; so start + period-activity = end always reconciles, and back-dating
+(ADR 0010) can retroactively shift a past period's figures.
+
+**Negative School (ADR 0017).** `allocations − paid withdrawals` may go negative
+(drew more than allocated). Allowed but never silent: warned at entry, flagged on
+the home screen; never hard-blocked.
 
 ### categories
 
@@ -197,7 +207,18 @@ POLICY webhook_sig ON /intake/naboopay
 -- Nothing is ever deleted; corrections are reversals
 POLICY no_delete ON transactions
   USING (operation <> 'DELETE');
+
+-- Every in-place status change is guarded by the expected current status,
+-- and is a no-op otherwise, so double-taps / concurrent officers apply it once
+POLICY guarded_transition ON transactions
+  USING (new.status IS NULL OR old.status = expected_from(action));
 ```
+
+> **Guarded transitions (ADR 0019).** `markWithdrawalPaid` requires `committed`;
+> `confirmDraft`/`skipDraft` require `draft`; `assignCategory` requires
+> `needs_review`; entering a part_paid amount requires `provisional`. Convex
+> serialises mutations, so the first attempt flips the status and wins and any
+> second attempt is a clean no-op — money moves exactly once.
 
 ## Migrations
 

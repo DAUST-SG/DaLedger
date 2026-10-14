@@ -45,7 +45,7 @@
 | 1 | Convex Auth + officer guard | `infra` | `convex/auth.config.ts`, `convex/auth.ts` | 📋 |
 | 2 | Login page + authed shell | `feat` | `src/routes/Login.tsx`, `src/main.tsx` | 📋 |
 | 3 | `transactions.create` (+ validation, audit) | `feat` | `convex/transactions.ts`, `convex/audit.ts` | 📋 |
-| 4 | `transactions.reverse` + transfer/withdrawal | `feat` | `convex/transactions.ts` | 📋 |
+| 4 | `transactions.reverse` (one active reversal, guarded) + transfer/withdrawal; guarded status transitions (ADR 0019, 0020) | `feat` | `convex/transactions.ts` | 📋 |
 | 5 | Add-transaction form + Home | `feat` | `src/routes/AddTransaction.tsx`, `src/routes/Home.tsx` | 📋 |
 
 **Definition of Done:**
@@ -99,7 +99,7 @@
 
 | # | Task | Type | Files Involved | Status |
 |---|------|------|----------------|--------|
-| 1 | `reconciliations.create` + adjustment | `feat` | `convex/reconciliations.ts` | 📋 |
+| 1 | `reconciliations.create` + adjustment (by sign); opening-balance correction as cutover-dated adjustment (ADR 0018); negative-School warn/flag (ADR 0017) | `feat` | `convex/reconciliations.ts` | 📋 |
 | 2 | Reconcile flow UI | `feat` | `src/routes/Reconcile.tsx` | 📋 |
 | 3 | Last-check-date per account on Home | `feat` | `convex/reconciliations.ts`, `src/routes/Home.tsx` | 📋 |
 | 4 | Audit log viewer (read-only) | `feat` | `src/routes/Transactions.tsx` | 📋 |
@@ -136,13 +136,15 @@
 
 | # | Task | Type | Files Involved | Status |
 |---|------|------|----------------|--------|
-| 1 | `reports.term` aggregation | `feat` | `convex/reports.ts` | 📋 |
-| 2 | Report page (by category/event, start/end, School) | `feat` | `src/routes/Report.tsx` | 📋 |
+| 1 | `reports.term` aggregation: `occurredAt`-scoped, `balanceAsOf` start/end, full movement reconciliation (ADR 0016, 0021) | `feat` | `convex/reports.ts`, `convex/balances.ts` | 📋 |
+| 2 | Report page (by category/event, start/end, movement reconciliation, School) | `feat` | `src/routes/Report.tsx` | 📋 |
 | 3 | Loading / empty / error states | `chore` | `src/components/*`, `src/routes/*` | 📋 |
 | 4 | Offline reconnect handling (native queue) | `feat` | `src/main.tsx`, `src/hooks/*` | 📋 |
 
 **Definition of Done:**
-- [ ] Report totals reproduce the transactions list for the period.
+- [ ] Report totals reproduce the transactions list for the period (`occurredAt`-scoped).
+- [ ] Start balance + movement lines (income/expense/paid-withdrawals-in/adjustments/transfers) = end balance, nothing unexplained (ADR 0021).
+- [ ] Event view shows all-time net, labelled distinctly from the period report (ADR 0022).
 - [ ] Every screen handles loading, empty, and error gracefully.
 
 ---

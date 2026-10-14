@@ -116,12 +116,17 @@ interface BalancesView { accounts: AccountBalance[]; totalHeld: number; school: 
 ```typescript
 // convex/balances.ts
 export const list = query(async (ctx): Promise<BalancesView> => { /* opening + sum(tx) per account */ });
+export const asOf = query(async (ctx, args: { date: number }): Promise<BalancesView> => { /* ADR 0016: live tx with occurredAt <= date */ });
 
 // convex/transactions.ts
 export const create = mutation(async (ctx, args: CreateTransactionInput): Promise<{ id: string; newBalance: number }> => {});
-export const reverse = mutation(async (ctx, args: { transactionId: string; reason: string }): Promise<{ reversalId: string }> => {});
-export const markWithdrawalPaid = mutation(async (ctx, args: { transactionId: string; toAccountId: string }): Promise<{ id: string }> => {});
+export const reverse = mutation(async (ctx, args: { transactionId: string; reason: string }): Promise<{ reversalId: string }> => { /* ADR 0020: no-op if target already has an active reversal */ });
+export const markWithdrawalPaid = mutation(async (ctx, args: { transactionId: string; toAccountId: string }): Promise<{ id: string }> => { /* ADR 0019: guarded committed->paid, no-op otherwise */ });
 export const list = query(async (ctx, args: { filter?: Partial<Record<"accountId"|"categoryId"|"eventId"|"source"|"type", string>>; from?: number; to?: number; cursor?: string }): Promise<PaginatedResponse<Transaction>> => {});
+
+// convex/reports.ts
+export const event = query(async (ctx, args: { eventId: string }): Promise<EventReport> => { /* ADR 0022: ALL-TIME income/expense/net by category */ });
+export const term  = query(async (ctx, args: { from: number; to: number }): Promise<TermReport> => { /* ADR 0016,0021: occurredAt-scoped; balanceAsOf start/end; full movement reconciliation */ });
 ```
 
 ```typescript
