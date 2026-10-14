@@ -5,7 +5,7 @@ A code-level map of the codebase before implementation: file structure, types, f
 ## 1. Project File Structure
 
 ```text
-finance-tracker/
+DaLedger/
 ├── convex/                       # Backend (Convex)
 │   ├── schema.ts                 # Table + index definitions
 │   ├── auth.config.ts            # Convex Auth providers
@@ -84,6 +84,7 @@ interface Transaction {
   recordedBy: string;        // user id or source name
   reversalOf?: string | null;
   recurringId?: string | null;
+  draftMonth?: string | null;   // "YYYY-MM" for recurring drafts; one-per-month key (ADR 0025)
   createdAt: number;
 }
 
@@ -93,7 +94,7 @@ interface RecurringTemplate { _id: string; reason: string; amount: number; accou
 // Input types
 interface CreateTransactionInput {
   type: TxType; amount: number; accountId: string; toAccountId?: string | null;
-  reason: string; categoryId: string; eventId?: string | null; occurredAt?: number; receiptUrl?: string | null;
+  reason: string; categoryId?: string | null; eventId?: string | null; occurredAt?: number; receiptUrl?: string | null; // categoryId required only for income/expense (ADR 0009)
 }
 interface IntakeIncomeInput {
   source: Source; externalId: string; amount: number; paidAt: string;

@@ -75,9 +75,14 @@ Reverse a previously recorded income.
 {
   "reversalId": "k1b…",
   "reversalOf": "jd7c8s…",
-  "amount": -253650
+  "amount": 253650,
+  "isReversal": true
 }
 ```
+
+> `amount` is always a **positive** integer (ADR 0007); the reversal's cancelling
+> effect comes from `isReversal`/`reversalOf` (the −1 sign rule, ADR 0002), not a
+> negative amount.
 
 **Response (error) — 404 Not Found**
 

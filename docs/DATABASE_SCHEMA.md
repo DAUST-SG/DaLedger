@@ -4,11 +4,11 @@
 |---|---|
 | **Database** | Convex document-relational store |
 | **Naming** | camelCase fields; table names plural; ids are Convex references |
-| **Money** | integer FCFA, always positive in `amount`; direction comes from `type` |
+| **Money** | integer FCFA, always positive in `amount`; direction comes from `type`. Stored as `v.number()` with a runtime integer+positive guard — not `v.int64()` (ADR 0024) |
 
 > SQL is shown below as a portable illustration of indexes, relationships, and access rules. In Convex these map to `defineTable`, `.index()`, and function-level auth checks respectively. The authoritative definition lives in `convex/schema.ts`.
 
-> **Decision records:** this schema reflects ADRs 0001–0015 in `docs/adr/`. Where
+> **Decision records:** this schema reflects ADRs 0001–0025 in `docs/adr/`. Where
 > a field or rule cites an ADR, that record is the rationale of record.
 
 ## Tables
@@ -45,7 +45,8 @@
 | `receiptUrl` | string | null | Optional photo/PDF |
 | `recordedBy` | ref → users / string | not null | Officer id, or source name for automatic |
 | `reversalOf` | ref → transactions | null | The transaction this one cancels. A target has **at most one active reversal**; un-reverse by reversing the reversal (ADR 0020) |
-| `recurringId` | ref → recurringTemplates | null | Template that generated this draft; unique with due month |
+| `recurringId` | ref → recurringTemplates | null | Template that generated this draft; unique (in-mutation) with `draftMonth` (ADR 0012, 0025) |
+| `draftMonth` | string | null | `"YYYY-MM"` of a recurring draft's due month; the one-per-month key (null otherwise) (ADR 0025) |
 | `createdAt` | timestamp | not null | When the record was created in the app |
 
 #### Status values and their effect on balances (ADR 0007, 0011, 0012, 0013)
@@ -159,8 +160,14 @@ the home screen; never hard-blocked.
 
 ## Indexes
 
+> **Convex has no unique indexes (ADR 0025).** The `UNIQUE` lines below are
+> illustration only. In Convex these are non-unique `.index()`es; **uniqueness is
+> enforced inside the mutation** by querying the index first and rejecting /
+> returning-existing on a hit (race-free because mutations are serialised).
+
 ```sql
 -- Idempotent intake & refund lookup: kind distinguishes a sale from its refund (ADR 0005)
+-- (uniqueness enforced in-mutation; Convex index = by_source_external_kind)
 CREATE UNIQUE INDEX idx_tx_source_external_kind ON transactions(source, externalId, kind);
 -- Naboopay feed matching
 CREATE INDEX idx_tx_naboopay_ref ON transactions(naboopayReference);
@@ -170,8 +177,9 @@ CREATE INDEX idx_tx_account_occurred ON transactions(accountId, occurredAt);
 CREATE INDEX idx_tx_status ON transactions(status);
 -- Event rollups
 CREATE INDEX idx_tx_event ON transactions(eventId);
--- One draft per template per month
-CREATE UNIQUE INDEX idx_tx_recurring_month ON transactions(recurringId, occurredAtMonth);
+-- One draft per template per month: draftMonth is a "YYYY-MM" field (ADR 0025)
+-- (uniqueness enforced in-mutation; Convex index = by_recurring_month)
+CREATE UNIQUE INDEX idx_tx_recurring_month ON transactions(recurringId, draftMonth);
 -- Reconciliation freshness per account
 CREATE INDEX idx_recon_account_checked ON reconciliations(accountId, checkedAt);
 ```
@@ -180,7 +188,7 @@ CREATE INDEX idx_recon_account_checked ON reconciliations(accountId, checkedAt);
 
 - `transactions.accountId` → `accounts._id` — every transaction affects exactly one account (the source account for transfers). One-to-many.
 - `transactions.toAccountId` → `accounts._id` — destination for transfers and paid school withdrawals. Optional.
-- `transactions.categoryId` → `categories._id` — required; `Unlabeled` by default.
+- `transactions.categoryId` → `categories._id` — **required only for `income`/`expense`** (direction-matched); empty for all other types; `Unlabeled` sentinel for auto-captured income (ADR 0009).
 - `transactions.eventId` → `events._id` — optional event grouping.
 - `transactions.reversalOf` → `transactions._id` — self-reference linking a reversal to its original.
 - `transactions.recurringId` → `recurringTemplates._id` — links a generated draft to its template.

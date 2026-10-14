@@ -20,7 +20,10 @@ out of the inbox, with screens disagreeing.
 **Status is the single source of truth for inbox membership**, and the inbox is
 a derived query, not a stored flag:
 
-> in the inbox ⇔ `status ∈ {needs_review, draft}`.
+> in the inbox ⇔ `status ∈ {needs_review, draft, provisional}`.
+
+(`provisional` was added by ADR 0013 for part_paid items; it is inbox-visible but
+balance-excluded.)
 
 One enforced invariant prevents drift: **an item can never be `confirmed` while
 its category is `Unlabeled`.** Assigning a real category is the single action
