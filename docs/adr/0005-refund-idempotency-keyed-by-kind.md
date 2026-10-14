@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
-- **Amended by:** ADR 0026
+- **Amended by:** ADR 0026; M2 decision of 2026-10-14 (unmatched refund → 404)
 
 > **Amended by ADR 0026.** Naboopay v2 has a refund API (`GET /refund/{order_id}`)
 > and a `refunded` status. The source's refund intake below is still the capture
@@ -43,7 +43,11 @@ each-idempotent records.
   independent of `type`/`reversalOf` and exists to scope idempotency.
 - A retried refund finds its own `refund` row already present and does nothing —
   exactly one reversal.
-- A refund for which no matching `income` exists has nothing to reverse; route
-  it to Needs-review rather than creating a dangling reversal.
+- A refund for which no matching `income` exists has nothing to reverse. It is
+  answered **404 and nothing is written** (amended in M2: a refund request carries
+  no amount, so a Needs-review row would be empty). The backend treats the 404 as
+  retryable, which also fixes a refund that arrives before its sale; the M5 sweep
+  flags a `refunded` order whose income has no reversal (ADR 0026); and
+  reconciliation against the real Naboopay balance is the final backstop.
 - Reversals created this way still follow ADR 0002 (near-copy of the original,
   flipped by the reversal sign rule).

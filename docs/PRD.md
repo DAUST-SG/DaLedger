@@ -79,13 +79,13 @@ Within 12 months, the SG runs entirely on Finance Tracker: officers record every
 
 ### 5.3 Automatic income intake
 - **Priority:** P0
-- **Description:** HTTPS endpoint `/intake/income`; per-source secret key; idempotent on `(source, externalId, kind)` where `kind ∈ {income, refund}` so a sale and its refund are distinct, each-idempotent records (ADR 0005); income booked on the Naboopay account with the source's default category and status `confirmed`.
+- **Description:** HTTPS endpoint `/intake/income`; per-source secret key; idempotent on `(source, externalId, kind)` where `kind ∈ {income, refund}` so a sale and its refund are distinct, each-idempotent records (ADR 0005); income booked on the Naboopay account with status `confirmed` and a category chosen in a fixed order: the request's income category, else the source's default, else `Unlabeled` + `needs_review` (ADR 0029).
 - **Acceptance Criteria:**
   - [ ] The same order sent twice produces exactly one transaction.
   - [ ] An unpaid order never appears (backends post only on paid/done).
   - [ ] A wrong/unknown key is rejected (401).
   - [ ] A refund call creates a reversal of the original income, and a retried refund still yields exactly one reversal (ADR 0005).
-  - [ ] A refund with no matching income goes to Needs-review rather than creating a dangling reversal.
+  - [ ] A refund with no matching income gets a retryable 404 and writes nothing (ADR 0005, amended); the M5 sweep catches a sale that was never captured.
 
 ### 5.4 Naboopay integration
 - **Priority:** P0 (webhook) / P1 (sweep, balance)
@@ -171,6 +171,6 @@ Sprint 5 → M4, Sprint 6 → M5, Sprint 7 → M6, Sprint 8 → M7. -->
 - [ ] Can the SG obtain a working Naboopay **server API key** with the `read` scope (the current publishable key is rejected)? Needed for the sweeps + balance auto-read.
 - [ ] Who maintains the shop and DaBus backends, and when can they add the intake call + persist Naboopay `order_id`?
 - [x] Fee policy: `fees_customer_side = true`, set explicitly by the backends (ADR 0026).
-- [ ] Agree the starting category list and the default category/event per source.
+- [ ] Agree the starting category list and the default category per source (mechanism fixed by ADR 0029; values `shop` → Shop sales, `dabus` → DaBus pending the Treasurer).
 - [ ] Is offline capture required for the first release, or staged?
 - [ ] Final cutover date and source of verified opening balances + university statement.

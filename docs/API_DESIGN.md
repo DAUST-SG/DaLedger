@@ -88,7 +88,7 @@ HTTP-layer errors use a consistent JSON shape:
 | `UNAUTHORIZED` | 401 | Missing/invalid intake key or webhook signature |
 | `VALIDATION` | 422 | Non-integer/non-positive amount, missing required field |
 | `DUPLICATE` | 200 | `(source, externalId, kind)` already recorded — returns existing record, creates nothing |
-| `NOT_FOUND` | 404 | Refund references an unknown `externalId` — the tracker also surfaces it as a Needs-review item rather than creating a dangling reversal (ADR 0005) |
+| `NOT_FOUND` | 404 | Refund references an unknown `externalId`. Nothing is written; **retry it** — the sale may not have arrived yet (ADR 0005, amended) |
 | `RATE_LIMITED` | 429 | Too many requests |
 | `SERVER_ERROR` | 500 | Unexpected failure |
 
@@ -110,7 +110,7 @@ Officer list queries use Convex cursor pagination:
 
 | Category | Limit | Notes |
 |----------|-------|-------|
-| `/intake/income` | 60 req/min per source key <!-- assumed --> | Backends retry on failure; duplicates are safe |
+| `/intake/income` | **Deferred to pre-go-live** (Convex rate-limiter) | Not an M2 deliverable. Duplicates are idempotent; a leaked key is contained by key rotation and Naboopay reconciliation, which rate limiting only slows |
 | `/intake/naboopay` | 120 req/min <!-- assumed --> | Bursty on settlement |
 | Outbound to Naboopay | ≤ 100 req/60 s | Hard limit imposed by Naboopay; sweep paginates |
 | Officer queries/mutations | Convex platform defaults | Small closed user set |
