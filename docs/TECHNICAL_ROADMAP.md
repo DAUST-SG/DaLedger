@@ -12,7 +12,7 @@ DaLedger/
 │   ├── auth.ts                   # currentOfficer() helper, guards
 │   ├── accounts.ts               # account queries, opening-balance seed
 │   ├── balances.ts               # computed-balance live queries
-│   ├── transactions.ts           # create / reverse / markWithdrawalPaid / recordPayout / list
+│   ├── transactions.ts           # create / reverse / markWithdrawalPaid / cancelWithdrawal / recordPayout / list
 │   ├── review.ts                 # needs-review inbox query + label mutation
 │   ├── reconciliations.ts        # reconcile mutation + freshness query
 │   ├── reports.ts                # term report aggregation query
@@ -21,7 +21,8 @@ DaLedger/
 │   ├── audit.ts                  # writeAudit() helper
 │   ├── http.ts                   # httpRouter: /intake/income(/refund), /intake/naboopay
 │   ├── crons.ts                  # scheduled: safetyNetSweep, monthlyDrafts
-│   └── migrations/               # ordered migrations (see DATABASE_SCHEMA.md)
+│   ├── seed.ts                   # accounts, categories, officers (see DATABASE_SCHEMA.md)
+│   └── ledger.ts                 # pure balance engine + entry rules (unit-tested)
 ├── src/                          # Frontend (React + Vite)
 │   ├── main.tsx                  # ConvexProvider + Router bootstrap
 │   ├── routes/
@@ -59,7 +60,7 @@ DaLedger/
 // Entities (mirror DB tables)
 type AccountKey = "naboopay" | "wave" | "om" | "cash" | "school";
 type TxType = "income" | "expense" | "transfer" | "allocation" | "school_withdrawal" | "adjustment_up" | "adjustment_down"; // ADR 0001
-type TxStatus = "confirmed" | "needs_review" | "committed" | "paid" | "draft" | "memo" | "skipped"; // ADR 0003,0007,0011,0012,0026
+type TxStatus = "confirmed" | "needs_review" | "committed" | "paid" | "draft" | "memo" | "skipped" | "cancelled"; // ADR 0003,0007,0011,0012,0026,0028
 type TxKind = "income" | "refund"; // scopes intake idempotency (ADR 0005)
 type Source = "shop" | "dabus" | "naboopay" | "manual" | (string & {});
 
@@ -123,6 +124,7 @@ export const asOf = query(async (ctx, args: { date: number }): Promise<BalancesV
 export const create = mutation(async (ctx, args: CreateTransactionInput): Promise<{ id: string; newBalance: number }> => {});
 export const reverse = mutation(async (ctx, args: { transactionId: string; reason: string }): Promise<{ reversalId: string }> => { /* ADR 0020: no-op if target already has an active reversal */ });
 export const markWithdrawalPaid = mutation(async (ctx, args: { transactionId: string; toAccountId: string }): Promise<{ id: string }> => { /* ADR 0019: guarded committed->paid, no-op otherwise */ });
+export const cancelWithdrawal = mutation(async (ctx, args: { transactionId: string; reason: string }): Promise<{ id: string; changed: boolean }> => { /* ADR 0028: guarded committed->cancelled, no-op otherwise */ });
 export const recordPayout = mutation(async (ctx, args: { fromAccountId: string; toAccountId: string; grossOut: number; netIn: number; reason: string; occurredAt?: number }): Promise<{ transferId: string; feeExpenseId: string | null }> => { /* ADR 0015: net transfer + "Provider fees" expense for (grossOut - netIn) */ });
 export const list = query(async (ctx, args: { filter?: Partial<Record<"accountId"|"categoryId"|"eventId"|"source"|"type", string>>; from?: number; to?: number; cursor?: string }): Promise<PaginatedResponse<Transaction>> => {});
 

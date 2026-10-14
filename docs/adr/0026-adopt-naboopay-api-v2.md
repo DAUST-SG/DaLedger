@@ -56,8 +56,9 @@ Build against **Naboopay API v2** only. Register webhooks with the **v2 payload*
 
 ## Consequences
 
-- One status fewer in the schema, the balance gate and the inbox; M1 builds the
-  7-status enum.
+- One status fewer in the schema, the balance gate and the inbox (7 at the time
+  of this ADR; ADR 0028 later re-added one as `cancelled` → 8 — see the schema
+  status table for the authoritative set).
 - The "we cannot know the fee" problem disappears: fees are exact per
   transaction and per payout.
 - Payout entry moves from manual to automatic, removing the commonest source of

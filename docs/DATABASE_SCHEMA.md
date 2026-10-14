@@ -8,7 +8,7 @@
 
 > SQL is shown below as a portable illustration of indexes, relationships, and access rules. In Convex these map to `defineTable`, `.index()`, and function-level auth checks respectively. The authoritative definition lives in `convex/schema.ts`.
 
-> **Decision records:** this schema reflects ADRs 0001–0026 in `docs/adr/`. Where
+> **Decision records:** this schema reflects ADRs 0001–0028 in `docs/adr/`. Where
 > a field or rule cites an ADR, that record is the rationale of record.
 
 ## Tables
@@ -41,7 +41,7 @@
 | `kind` | enum | not null | `income`\|`refund` — scopes intake idempotency so a sale and its refund are distinct records (ADR 0005). `income` for all non-intake entries |
 | `externalId` | string | null | Source system id; unique with `(source, kind)` |
 | `naboopayReference` | string | null | Naboopay `order_id`, for feed matching |
-| `status` | enum | not null | `confirmed`\|`needs_review`\|`committed`\|`paid`\|`draft`\|`memo`\|`skipped` (see status table below; ADR 0026 removed `provisional`) |
+| `status` | enum | not null | `confirmed`\|`needs_review`\|`committed`\|`paid`\|`draft`\|`memo`\|`skipped`\|`cancelled` (see status table below; ADR 0026 removed `provisional`, ADR 0028 added `cancelled`) |
 | `receiptUrl` | string | null | Optional photo/PDF |
 | `recordedBy` | ref → users / string | not null | Officer id, or source name for automatic |
 | `reversalOf` | ref → transactions | null | The transaction this one cancels. A target has **at most one active reversal**; un-reverse by reversing the reversal (ADR 0020) |
@@ -49,7 +49,7 @@
 | `draftMonth` | string | null | `"YYYY-MM"` of a recurring draft's due month; the one-per-month key (null otherwise) (ADR 0025) |
 | `createdAt` | timestamp | not null | When the record was created in the app |
 
-#### Status values and their effect on balances (ADR 0007, 0011, 0012, 0026)
+#### Status values and their effect on balances (ADR 0007, 0011, 0012, 0026, 0028)
 
 | Status | In Needs-review inbox? | Counts toward balances? | Meaning |
 |--------|------------------------|-------------------------|---------|
@@ -60,6 +60,7 @@
 | `draft` | yes | no | Recurring-template draft awaiting confirmation (v1.1) |
 | `skipped` | no | no | A recurring draft the officer skipped; kept so the job can't recreate it (ADR 0012) |
 | `memo` | no | no (but **included in reports**) | Pre-cutover event summary; the one place balances and reports diverge (ADR 0011) |
+| `cancelled` | no | no | An approved school withdrawal that will not happen; guarded `committed → cancelled` (ADR 0028) |
 
 #### Balance formula (ADR 0007)
 
@@ -132,7 +133,7 @@ the home screen; never hard-blocked.
 |--------|------|-------------|-------------|
 | `_id` | id | pk | Audit entry id |
 | `actor` | ref → users / string | not null | Who made the change |
-| `action` | string | not null | `create`\|`edit`\|`reverse`\|`adjust`\|`mark_paid`\|`confirm_draft`\|`skip_draft`\|`assign_category`\|… (ADR 0014) |
+| `action` | string | not null | `create`\|`edit`\|`reverse`\|`adjust`\|`mark_paid`\|`cancel_withdrawal`\|`confirm_draft`\|`skip_draft`\|`assign_category`\|… (ADR 0014) |
 | `targetId` | ref → transactions | null | Affected transaction |
 | `before` | json | null | **Changed fields only** before the write (empty for `create`) |
 | `after` | json | null | **Changed fields only** after the write |
@@ -221,22 +222,28 @@ POLICY guarded_transition ON transactions
   USING (new.status IS NULL OR old.status = expected_from(action));
 ```
 
-> **Guarded transitions (ADR 0019).** `markWithdrawalPaid` requires `committed`;
-> `confirmDraft`/`skipDraft` require `draft`; `assignCategory` requires
-> `needs_review`. Convex
+> **Guarded transitions (ADR 0019).** `markWithdrawalPaid` and `cancelWithdrawal`
+> require `committed`; `confirmDraft`/`skipDraft` require `draft`; `assignCategory`
+> requires `needs_review`. Convex
 > serialises mutations, so the first attempt flips the status and wins and any
 > second attempt is a clean no-op — money moves exactly once.
 
-## Migrations
+## Schema changes and seed data
+
+Convex applies `convex/schema.ts` itself on every deploy, so there are no
+numbered migration files. Changes to tables that already hold data follow the
+`v.optional` → backfill → require pattern. Seed data lives in one file:
 
 ```text
 convex/
-└── migrations/
-    ├── 0001_init_core.ts          # accounts, transactions, categories, events
-    ├── 0002_users_auth.ts         # users table + Convex Auth wiring
-    ├── 0003_reconciliations.ts    # reconciliations + auditLog
-    ├── 0004_intake_indexes.ts     # (source, externalId, kind) index + in-mutation uniqueness, naboopayReference
-    ├── 0005_seed_accounts.ts      # 5 accounts + opening balances (cutover)
-    ├── 0006_seed_categories.ts    # starting category list
-    └── 0007_recurring.ts          # recurringTemplates + one-draft-per-month index (v1.1)
+├── schema.ts      # every table and index above
+└── seed.ts        # run once per deployment with `npx convex run`:
+                   #   seed:accounts    5 accounts + opening balances, starting categories
+                   #                    (never touches an existing row: ADR 0018)
+                   #   seed:addOfficer  create an officer with a starting password
+                   #   seed:addEvent    add an event tag
 ```
+
+`users.role` and `users.active` are optional in the Convex schema because Convex
+Auth inserts `users` rows itself; officer code treats a missing `active` as
+inactive, so an officer exists only once `seed:addOfficer` has created them.
