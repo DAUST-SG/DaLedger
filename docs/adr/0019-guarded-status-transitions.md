@@ -3,12 +3,13 @@
 - **Status:** Accepted
 - **Date:** 2026-10-14
 - **Deciders:** Pikou (Lead, IT Committee)
+- **Amended by:** ADR 0026 (part_paid example removed)
 
 ## Context
 
 Round 1 introduced many one-time, balance-changing status transitions done by
 editing a row in place: `committed→paid`, `draft→confirmed`, `draft→skipped`,
-`needs_review→confirmed` (assign category), part_paid amount entry. These are
+`needs_review→confirmed` (assign category). These are
 exactly the actions a double-tap on a flaky phone, a retry, or two officers can
 fire twice — risking double money movement (pay twice, two expenses from one
 draft).

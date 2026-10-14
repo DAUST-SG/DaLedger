@@ -1,0 +1,18 @@
+# OS / editor noise
+.DS_Store
+Thumbs.db
+
+# Local planning / scratch files (never commit)
+plan.pdf
+*.local
+
+# Node / build (arrive at M1)
+node_modules/
+dist/
+build/
+*.log
+
+# Env & secrets — never commit (see docs/SECURITY.md)
+.env
+.env.local
+.env.*.local
