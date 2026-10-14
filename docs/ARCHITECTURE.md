@@ -59,7 +59,7 @@ flowchart TD
 - **Purpose:** The single source of truth and all business logic.
 - **Key modules:** `transactions.ts`, `balances.ts`, `reconciliations.ts`, `recurring.ts`, `http.ts`, `naboopay.ts`, `crons.ts`.
 - **Framework:** Convex (queries, mutations, httpAction, scheduled functions).
-- **Key responsibilities:** enforce the design rules (computed balances, reason required, nothing deleted, one capture point, transfers neutral, integer FCFA, idempotent intake), write the audit log, verify webhooks over the raw body.
+- **Key responsibilities:** enforce the design rules (computed balances, reason required, nothing deleted, one capture point, transfers neutral, integer FCFA, idempotent intake), **guard every in-place status transition by expected-current-status so it applies exactly once** (ADR 0019), enforce **at most one active reversal per target** (ADR 0020), compute **point-in-time balances by `occurredAt`** for reports (ADR 0016), write the audit log, verify webhooks over the raw body.
 
 ### Database — Convex store
 - **Purpose:** Persist the ledger and supporting tables.
@@ -80,6 +80,7 @@ flowchart TD
 6. **Refund:** source calls refund endpoint with original `externalId` → tracker finds the original by `(source, externalId, income)` and writes a reversal keyed `(source, externalId, refund)` — independently idempotent (ADR 0005).
 7. **Naboopay payout with fee:** manual "record a payout" takes gross-out and net-in → writes a **transfer of the net amount** + a **"Provider fees" expense** for the fee, keeping transfers neutral (ADR 0015).
 8. **Monthly recurring draft (scheduled, v1.1):** cron creates ≤ 1 `draft` expense per active template per month → appears in inbox → officer confirms (edits then counts) or skips (terminal `skipped`, not recreated) (ADR 0012).
+9. **Term report:** `reports.term(from, to)` → `balanceAsOf(start−1)` and `balanceAsOf(end)` by `occurredAt` → period entries grouped by category/event → a full **movement reconciliation** (`start + income − expense + paid-withdrawals-in ± adjustments + transfers = end`) so nothing is unexplained (ADR 0016, 0021). Event view uses the same engine all-time; the report uses it period-scoped (ADR 0022).
 
 ## 5. External Services
 

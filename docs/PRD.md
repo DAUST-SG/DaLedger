@@ -65,7 +65,7 @@ Within 12 months, the SG runs entirely on Finance Tracker: officers record every
 - **Acceptance Criteria:**
   - [ ] A transaction entered on a phone updates the correct balance on every device immediately.
   - [ ] A transfer does not change the total held by the SG (it is strictly equal-in/equal-out; a payout fee is a separate expense, ADR 0015).
-  - [ ] A reversal restores the balance with no special-case logic, and nets to zero inside its own category/event (ADR 0002).
+  - [ ] A reversal restores the balance with no special-case logic, and nets to zero inside its own category/event (ADR 0002); a target has at most one active reversal and double-taps apply it once (ADR 0019, 0020).
   - [ ] `committed`, `draft`, `skipped`, `memo`, and `provisional` entries are excluded from balances; `confirmed`, `paid`, and `needs_review` count (ADR 0007).
 
 ### 5.2 Manual entry
@@ -97,25 +97,28 @@ Within 12 months, the SG runs entirely on Finance Tracker: officers record every
 
 ### 5.5 Needs-review inbox, filters, event view, CSV
 - **Priority:** P0 (inbox) / P1 (rest)
-- **Description:** The inbox is a **derived view**, not a stored flag: in the inbox ⇔ `status ∈ {needs_review, draft, provisional}` (ADR 0006, 0013). It gathers unlabelled items (`Unlabeled` + `needs_review`), unmatched Naboopay payments, part_paid provisionals, and recurring drafts. Full transaction list with filters (date, account, category, event, source, type) and CSV export; per-event totals grouped by category.
+- **Description:** The inbox is a **derived view**, not a stored flag: in the inbox ⇔ `status ∈ {needs_review, draft, provisional}` (ADR 0006, 0013). It gathers unlabelled items (`Unlabeled` + `needs_review`), unmatched Naboopay payments, part_paid provisionals, and recurring drafts. Full transaction list with filters (date, account, category, event, source, type) and CSV export. The **Event view is all-time** (the event's whole-life P&L by `occurredAt`), distinct from and reconciling with the report's period-scoped by-event line; both are labelled so cross-term events don't look like bugs (ADR 0022).
 - **Acceptance Criteria:**
   - [ ] Every captured item without a label is in the inbox; assigning a real category is the single action that flips it `needs_review → confirmed` (an item is never `confirmed` while `Unlabeled`, ADR 0006).
-  - [ ] Event totals match the transactions list.
-  - [ ] CSV export reflects the active filters.
+  - [ ] Event view (all-time) and report by-event (period) are each labelled; an event's all-time net = sum of its per-period nets (ADR 0022).
+  - [ ] CSV export reflects the active filters, ordered by `occurredAt`.
 
 ### 5.6 Reconciliation & audit log
 - **Priority:** P0
-- **Description:** Per-account reconciliation (enter real balance → see computed + difference → fix via adjustment, `difference = real − computed`, chosen type `adjustment_up`/`adjustment_down` by sign). Last-check date per account on the home screen; a check is flagged **stale** when a back-dated entry lands on or before it (ADR 0010 — back-dating is allowed, not locked). The School receivable reconciles against the **university statement**, not a cash count (ADR 0004). Every state-changing write is recorded in the audit log with changed-fields-only before/after (ADR 0014).
+- **Description:** Per-account reconciliation (enter real balance → see computed + difference → fix via adjustment, `difference = real − computed`, chosen type `adjustment_up`/`adjustment_down` by sign). `openingBalance` is write-once at cutover; later corrections are cutover-dated adjustments, never field edits (ADR 0018). Last-check date per account on the home screen; a check is flagged **stale** when a back-dated entry lands on or before it (ADR 0010 — back-dating is allowed, not locked). The School receivable reconciles against the **university statement**, not a cash count (ADR 0004); a negative School receivable is warned and flagged, never blocked (ADR 0017). Every state-changing write is recorded in the audit log with changed-fields-only before/after (ADR 0014).
 - **Acceptance Criteria:**
   - [ ] A difference can be resolved with a reasoned adjustment.
   - [ ] Every edit appears in the audit log with who/when/what and the changed fields.
   - [ ] Entering a back-dated transaction before an account's last check flips that account to "needs re-checking" (ADR 0010).
+  - [ ] Correcting an opening balance creates a cutover-dated adjustment, not a silent field edit (ADR 0018).
 
 ### 5.7 End-of-term review report
 - **Priority:** P0
-- **Description:** For a chosen period: totals by category and event, start/end balances, School movement, reconciliation history.
+- **Description:** For a chosen period (scoped by `occurredAt`, ADR 0016): totals by category and event, start/end balances (`balanceAsOf`), School movement, reconciliation history. Includes a **full movement reconciliation** — `start total held + income − expense + paid-withdrawals-in ± adjustments + transfers(0) = end total held` — so every change in total held is on a labelled line with nothing unexplained (ADR 0021).
 - **Acceptance Criteria:**
   - [ ] Report totals reproduce the transactions list for the period.
+  - [ ] Start balance + period movement = end balance, with each movement line (income/expense/paid-withdrawals-in/adjustments/transfers) shown explicitly (ADR 0021).
+  - [ ] Start/end balances use `balanceAsOf` on `occurredAt`; back-dating can retroactively adjust a closed period (ADR 0016).
 
 ### 5.8 Recurring expense templates
 - **Priority:** P2 (v1.1)
