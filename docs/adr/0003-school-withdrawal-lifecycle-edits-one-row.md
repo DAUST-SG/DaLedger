@@ -40,3 +40,6 @@ log records the before/after.
 - The full `status` enum is therefore:
   `confirmed | needs_review | committed | paid | draft`. Schema docs that omit
   `paid` must add it.
+
+  (The enum was later extended to 8 — `memo`/`skipped`/`provisional` added by
+  ADRs 0011/0012/0013; see the schema status table for the authoritative set.)

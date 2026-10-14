@@ -70,10 +70,11 @@ Within 12 months, the SG runs entirely on Finance Tracker: officers record every
 
 ### 5.2 Manual entry
 - **Priority:** P0
-- **Description:** A phone-first form for all non-automatic movements; reason, amount, account, category required; event, receipt, date optional.
+- **Description:** A phone-first form for all non-automatic movements; reason, amount, account required; **category required only for `income`/`expense`** (direction-matched) and omitted for transfer, allocation, school_withdrawal, and both adjustment types (ADR 0009); event, receipt, date optional.
 - **Acceptance Criteria:**
   - [ ] The form will not save without a reason.
   - [ ] Amounts are whole FCFA (integer, positive); display uses spaces as thousands separators.
+  - [ ] Category is required and direction-matched for income/expense, and not shown for other types (ADR 0009).
   - [ ] Recent reasons/categories are suggested as the officer types.
 
 ### 5.3 Automatic income intake
@@ -150,15 +151,19 @@ Within 12 months, the SG runs entirely on Finance Tracker: officers record every
 
 | Milestone | Target Date | Deliverable |
 |-----------|-------------|-------------|
-| M1 Schema, login, manual entry, live balances | 2026-10-27 | Phone entry changes balances live |
-| M2 Shop & DaBus intake | 2026-11-03 | Idempotent income capture + refund reversal |
-| M3 Inbox, filters, event view, CSV | 2026-11-10 | Review workflow usable |
-| M4 Reconciliation & audit log | 2026-11-17 | Reconcile + adjustments + audit trail |
-| M5 Naboopay integration | 2026-11-24 | Webhook match + safety-net sweep + balance read |
-| M6 Review report | 2026-12-01 | One-click term report |
-| M7 Recurring expenses (v1.1) | 2026-12-08 | Monthly drafts awaiting confirmation |
+| M1 Schema, login, manual entry, live balances | 2026-11-03 | Phone entry changes balances live |
+| M2 Shop & DaBus intake | 2026-11-10 | Idempotent income capture + refund reversal |
+| M3 Inbox, filters, event view, CSV | 2026-11-17 | Review workflow usable |
+| M4 Reconciliation & audit log | 2026-11-24 | Reconcile + adjustments + audit trail |
+| M5 Naboopay integration | 2026-12-01 | Webhook match + safety-net sweep + balance read |
+| M6 Review report | 2026-12-08 | One-click term report |
+| M7 Recurring expenses (v1.1) | 2026-12-15 | Monthly drafts awaiting confirmation |
 
-<!-- assumed: 1-week milestones starting 2026-10-20; adjust to committee availability -->
+<!-- assumed: build starts 2026-10-20; adjust to committee availability. M1 spans
+two one-week build sprints (schema; then login + manual entry + live balances),
+so the schedule is ~8 weeks. IMPLEMENTATION_ROADMAP.md maps its 8 sprints to
+these 7 milestones: Sprints 1–2 → M1, Sprint 3 → M2, Sprint 4 → M3,
+Sprint 5 → M4, Sprint 6 → M5, Sprint 7 → M6, Sprint 8 → M7. -->
 
 ## 9. Open Questions
 

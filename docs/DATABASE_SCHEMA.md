@@ -236,7 +236,7 @@ convex/
     ├── 0001_init_core.ts          # accounts, transactions, categories, events
     ├── 0002_users_auth.ts         # users table + Convex Auth wiring
     ├── 0003_reconciliations.ts    # reconciliations + auditLog
-    ├── 0004_intake_indexes.ts     # (source, externalId, kind) unique, naboopayReference
+    ├── 0004_intake_indexes.ts     # (source, externalId, kind) index + in-mutation uniqueness, naboopayReference
     ├── 0005_seed_accounts.ts      # 5 accounts + opening balances (cutover)
     ├── 0006_seed_categories.ts    # starting category list
     └── 0007_recurring.ts          # recurringTemplates + one-draft-per-month index (v1.1)

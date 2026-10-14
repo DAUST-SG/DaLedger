@@ -75,14 +75,14 @@ Reverse a previously recorded income.
 {
   "reversalId": "k1b…",
   "reversalOf": "jd7c8s…",
-  "amount": 253650,
-  "isReversal": true
+  "amount": 253650
 }
 ```
 
 > `amount` is always a **positive** integer (ADR 0007); the reversal's cancelling
-> effect comes from `isReversal`/`reversalOf` (the −1 sign rule, ADR 0002), not a
-> negative amount.
+> effect comes from the `reversalOf` link (the −1 sign rule, ADR 0002), not a
+> negative amount. The data model stores **only `reversalOf`** — there is no
+> `isReversal` column; a consumer derives "is a reversal" from `reversalOf != null`.
 
 **Response (error) — 404 Not Found**
 
@@ -247,11 +247,16 @@ Shown as request args → return shape. Called via the Convex client, not REST; 
 {
   "openingTotal": 1500000,
   "closingTotal": 1975500,
-  "byCategory": [ { "category": "Shop sales", "income": 1200000, "expense": 0 } ],
-  "byEvent": [ { "event": "Gala", "income": 800000, "expense": 650000, "net": 150000 } ],
+  "byCategory": [
+    { "category": "Shop sales",  "income": 426500, "expense": 0 },
+    { "category": "Sponsorship", "income": 200000, "expense": 0 },
+    { "category": "Catering",    "income": 0,      "expense": 450000 },
+    { "category": "Venue",       "income": 0,      "expense": 200000 }
+  ],
+  "byEvent": [ { "event": "Gala", "income": 200000, "expense": 650000, "net": -450000 } ],
   "movement": {
     "startTotalHeld": 1500000,
-    "income": 1200000,
+    "income": 626500,
     "expense": 650000,
     "paidWithdrawalsIn": 500000,
     "netAdjustments": -1000,
@@ -259,9 +264,19 @@ Shown as request args → return shape. Called via the Convex client, not REST; 
     "endTotalHeld": 1975500
   },
   "school": { "allocations": 3500000, "paidWithdrawals": 500000, "balance": 3000000 },
-  "reconciliations": [ { "accountId": "naboopay", "date": "2026-10-10", "difference": 0 } ]
+  "reconciliations": [
+    { "accountId": "naboopay", "date": "2026-10-10", "difference": 0 },
+    { "accountId": "cash",     "date": "2026-10-12", "difference": -1000 }
+  ]
 }
 ```
+
+> This example reconciles on every axis: account balances
+> (1 250 000 + 430 000 + 210 500 + 85 000 = 1 975 500 = `closingTotal` =
+> `endTotalHeld`); the movement identity
+> (1 500 000 + 626 500 − 650 000 + 500 000 − 1 000 + 0 = 1 975 500); `byCategory`
+> income/expense sums (626 500 / 650 000) equal `movement.income`/`expense`; the
+> −1 000 `netAdjustments` matches the Cash reconcile.
 
 > `movement` is the full period reconciliation (ADR 0021): `startTotalHeld +
 > income − expense + paidWithdrawalsIn ± netAdjustments + transfers =
