@@ -8,7 +8,7 @@
 
 > SQL is shown below as a portable illustration of indexes, relationships, and access rules. In Convex these map to `defineTable`, `.index()`, and function-level auth checks respectively. The authoritative definition lives in `convex/schema.ts`.
 
-> **Decision records:** this schema reflects ADRs 0001–0025 in `docs/adr/`. Where
+> **Decision records:** this schema reflects ADRs 0001–0026 in `docs/adr/`. Where
 > a field or rule cites an ADR, that record is the rationale of record.
 
 ## Tables
@@ -41,7 +41,7 @@
 | `kind` | enum | not null | `income`\|`refund` — scopes intake idempotency so a sale and its refund are distinct records (ADR 0005). `income` for all non-intake entries |
 | `externalId` | string | null | Source system id; unique with `(source, kind)` |
 | `naboopayReference` | string | null | Naboopay `order_id`, for feed matching |
-| `status` | enum | not null | `confirmed`\|`needs_review`\|`committed`\|`paid`\|`draft`\|`memo`\|`skipped`\|`provisional` (see status table below) |
+| `status` | enum | not null | `confirmed`\|`needs_review`\|`committed`\|`paid`\|`draft`\|`memo`\|`skipped` (see status table below; ADR 0026 removed `provisional`) |
 | `receiptUrl` | string | null | Optional photo/PDF |
 | `recordedBy` | ref → users / string | not null | Officer id, or source name for automatic |
 | `reversalOf` | ref → transactions | null | The transaction this one cancels. A target has **at most one active reversal**; un-reverse by reversing the reversal (ADR 0020) |
@@ -49,7 +49,7 @@
 | `draftMonth` | string | null | `"YYYY-MM"` of a recurring draft's due month; the one-per-month key (null otherwise) (ADR 0025) |
 | `createdAt` | timestamp | not null | When the record was created in the app |
 
-#### Status values and their effect on balances (ADR 0007, 0011, 0012, 0013)
+#### Status values and their effect on balances (ADR 0007, 0011, 0012, 0026)
 
 | Status | In Needs-review inbox? | Counts toward balances? | Meaning |
 |--------|------------------------|-------------------------|---------|
@@ -60,7 +60,6 @@
 | `draft` | yes | no | Recurring-template draft awaiting confirmation (v1.1) |
 | `skipped` | no | no | A recurring draft the officer skipped; kept so the job can't recreate it (ADR 0012) |
 | `memo` | no | no (but **included in reports**) | Pre-cutover event summary; the one place balances and reports diverge (ADR 0011) |
-| `provisional` | yes | no | A Naboopay `part_paid` of unknown actual amount, awaiting an officer-entered figure (ADR 0013) |
 
 #### Balance formula (ADR 0007)
 
@@ -89,7 +88,7 @@ the home screen; never hard-blocked.
 | `_id` | id | pk | Category id |
 | `name` | string | unique | e.g. Shop sales, Catering, Provider fees, Unlabeled |
 | `direction` | enum | not null | `income` \| `expense`. A **write-time guard**: an `income` entry may use only an income-direction category, an `expense` entry only an expense-direction one (ADR 0009) |
-| `isSystem` | bool | not null | True for `Unlabeled` / `Provider fees`. `Unlabeled` is only ever applied to auto-captured income (ADR 0009); `Provider fees` is the category for Naboopay payout fees (ADR 0015) |
+| `isSystem` | bool | not null | True for `Unlabeled` / `Provider fees`. `Unlabeled` is only ever applied to auto-captured income (ADR 0009); `Provider fees` is the category for Naboopay fees (ADR 0015, 0026) |
 
 ### events
 
@@ -133,7 +132,7 @@ the home screen; never hard-blocked.
 |--------|------|-------------|-------------|
 | `_id` | id | pk | Audit entry id |
 | `actor` | ref → users / string | not null | Who made the change |
-| `action` | string | not null | `create`\|`edit`\|`reverse`\|`adjust`\|`mark_paid`\|`confirm_draft`\|`skip_draft`\|`assign_category`\|`enter_partial`\|… (ADR 0014) |
+| `action` | string | not null | `create`\|`edit`\|`reverse`\|`adjust`\|`mark_paid`\|`confirm_draft`\|`skip_draft`\|`assign_category`\|… (ADR 0014) |
 | `targetId` | ref → transactions | null | Affected transaction |
 | `before` | json | null | **Changed fields only** before the write (empty for `create`) |
 | `after` | json | null | **Changed fields only** after the write |
@@ -224,7 +223,7 @@ POLICY guarded_transition ON transactions
 
 > **Guarded transitions (ADR 0019).** `markWithdrawalPaid` requires `committed`;
 > `confirmDraft`/`skipDraft` require `draft`; `assignCategory` requires
-> `needs_review`; entering a part_paid amount requires `provisional`. Convex
+> `needs_review`. Convex
 > serialises mutations, so the first attempt flips the status and wins and any
 > second attempt is a clean no-op — money moves exactly once.
 

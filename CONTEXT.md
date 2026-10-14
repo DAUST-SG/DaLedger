@@ -26,7 +26,7 @@ matching income goes to [[Needs-review]]. See ADR 0005.
 
 ### Needs-review
 A derived inbox of unfinished items, defined as
-`status ∈ {needs_review, draft, provisional}` — never a stored flag. Fed by
+`status ∈ {needs_review, draft}` — never a stored flag. Fed by
 auto-captured items lacking a category (sentinel
 category `Unlabeled`), unmatched Naboopay payments, and recurring drafts.
 Invariant: an item is never `confirmed` while its category is `Unlabeled`;
@@ -136,10 +136,10 @@ never moves twice. Applies to all in-place edits. See ADR 0019.
 
 ### Live status
 A status that counts toward balances: `confirmed`, `paid`, `needs_review`.
-`committed`, `draft`, `memo`, `skipped`, and `provisional` contribute 0. Note
+`committed`, `draft`, `memo`, and `skipped` contribute 0. Note
 [[Needs-review]] money **does** count — it is settled, fully-known money awaiting
-a label — but [[provisional]] (part_paid) does not. Full status set:
-`confirmed | needs_review | committed | paid | draft | memo | skipped | provisional`.
+a label. Full status set:
+`confirmed | needs_review | committed | paid | draft | memo | skipped`.
 
 ### Event view (all-time) vs report by-event (period)
 Two reconciling views of an event's net: the **Event view** is all-time (the
@@ -152,12 +152,6 @@ only gates new tags, not totals. See ADR 0022.
 A report-only pre-cutover event summary. Excluded from every balance, included in
 event/category reports. The single deliberate case where balance math and report
 math diverge. See ADR 0011.
-
-### Provisional
-A Naboopay `part_paid` payment surfaced for review. Inbox-visible but
-balance-excluded, because Naboopay reports the full nominal amount, not the
-partial actually received. An officer enters the real amount received, which
-turns it into settled income that counts. See ADR 0013.
 
 ### Recurring draft lifecycle
 A template-generated `draft` expense ends one of three ways, none a delete:
@@ -174,9 +168,13 @@ neutral — the SG total is unchanged. Not income or expense.
 A transfer out of Naboopay to Wave/OM/Cash. When Naboopay charges a fee, it is
 recorded as **two entries**: a [[transfer]] of the *net* amount received plus a
 separate "Provider fees" *expense* for the fee. Transfers never carry unequal
-amounts; every fee is an expense. See ADR 0015.
+amounts; every fee is an expense. Payouts are captured automatically from
+Naboopay's payout feed (`GET /payouts`); manual entry is the fallback. See ADR
+0015, 0026.
 
 ### Fee
-Any Naboopay charge. Per-*sale* fees are avoided via `fees_customer_side = true`
-(SG receives the full nominal amount). Per-*payout* fees are real and entered
-manually as a "Provider fees" expense. No automatic fee feed exists.
+Any Naboopay charge. Per-*sale* fees are avoided via `fees_customer_side = true`,
+which the backends must set explicitly (the v2 default is `false`), so the SG
+receives the full nominal amount. Per-*payout* fees are real and booked as a
+"Provider fees" expense. Naboopay v2 reports the exact fee on every transaction
+and payout. See ADR 0015, 0026.

@@ -3,6 +3,11 @@
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
+- **Amended by:** ADR 0026
+
+> **Amended by ADR 0026.** Naboopay v2 has a refund API (`GET /refund/{order_id}`)
+> and a `refunded` status. The source's refund intake below is still the capture
+> point; the sweep only flags a `refunded` order whose income has no reversal.
 
 ## Context
 

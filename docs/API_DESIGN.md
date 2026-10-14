@@ -13,7 +13,7 @@
 ## Design Principles
 
 1. **Idempotent by key** — intake dedupes on `(source, externalId, kind)` where `kind ∈ {income, refund}`; sending the same record twice records it once, and a refund never collides with its original sale (ADR 0005).
-2. **One capture point** — income is created only by the source backend's intake call; the Naboopay webhook/sweep never creates income, only matches or flags it.
+2. **One capture point** — income is created only by the source backend's intake call; the Naboopay webhook/sweep never creates income, only matches or flags it. The tracker never moves money: it calls Naboopay API v2 read-only (`read` scope, ADR 0026).
 3. **Verify at the edge** — intake validates the source key; the webhook verifies the HMAC over the **raw** body before parsing.
 4. **Whole FCFA integers** — amounts are positive integers; non-integer or non-positive amounts are rejected.
 5. **Never delete** — refunds and corrections are reversals (`reversalOf`), never deletions.
@@ -40,7 +40,7 @@ X-Signature: <hex HMAC-SHA256 of the raw request body, key = NABOOPAY_WEBHOOK_SE
 Content-Type: application/json
 ```
 
-<!-- assumed: exact signature header name to be confirmed with Naboopay; verification logic is header-name agnostic -->
+The header name `X-Signature` is confirmed by Naboopay's v2 docs. Webhooks are registered with the **v2 payload** (ADR 0026).
 
 **Public routes (no auth):** none. Every endpoint requires either a session, an intake key, or a valid signature.
 

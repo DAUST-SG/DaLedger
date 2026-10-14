@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
+- **Amended by:** ADR 0026 (`enter_partial` / part_paid removed)
 
 ## Context
 
@@ -15,14 +16,13 @@ needed a precise definition and a storage granularity.
 
 1. **Every state-changing write to a transaction is logged:** creates, field
    edits (amount, date, category, reason, account), and status transitions
-   (`committed→paid`, `needs_review→confirmed`, `draft→confirmed/skipped`,
-   part_paid amount entry). Pure reads are not logged; a reconciliation *check*
+   (`committed→paid`, `needs_review→confirmed`, `draft→confirmed/skipped`).
+   Pure reads are not logged; a reconciliation *check*
    is already its own stored record.
 2. **Store changed fields only** in `before`/`after`, not a full snapshot. A
    create has empty `before`.
 3. **Each entry carries a semantic action**: `create`, `edit`, `mark_paid`,
-   `confirm_draft`, `skip_draft`, `assign_category`, `reverse`, `adjust`,
-   `enter_partial`, …
+   `confirm_draft`, `skip_draft`, `assign_category`, `reverse`, `adjust`, …
 4. **Money entries (reversals, adjustments) live in both the ledger and the audit
    log without double-counting:** the reversal/adjustment is a real transaction
    (the money record balances use); the audit entry only witnesses it (who/why).
@@ -34,5 +34,5 @@ needed a precise definition and a storage granularity.
 - `auditLog.action` is an open, extensible string of named actions.
 - Changed-fields-only keeps the log lean while remaining sufficient to
   reconstruct a row's history.
-- Every in-place edit introduced by ADRs 0003, 0006, 0012, 0013 produces an
+- Every in-place edit introduced by ADRs 0003, 0006, 0012 produces an
   audit entry.

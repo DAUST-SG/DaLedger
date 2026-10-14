@@ -12,11 +12,11 @@ the path to production.
 
 ## 0. Ground rules (non-negotiable)
 
-1. **The ADRs are binding.** Every decision in `docs/adr/` (0001–0025) and every
+1. **The ADRs are binding.** Every decision in `docs/adr/` (0001–0026) and every
    term in `CONTEXT.md` is law. Code must match them. If you believe a decision
    is wrong, **do not silently deviate** — raise it with Pikou and, if changed,
    write a **new superseding ADR** (next free number, e.g. `0026-…`, marking the
-   old one `Superseded by 0026`). The 25 decisions were reached deliberately;
+   old one `Superseded by 0027`). The 26 decisions were reached deliberately;
    they rot the moment someone "just tweaks" the schema.
 2. **Nothing is silent, nothing is deleted, nothing moves money twice, every
    number traces back to an audited entry.** This is the spine of the whole
@@ -47,7 +47,7 @@ re-derive platform knowledge:
 | **`web-design-guidelines`** | Review gate: audit the UI for accessibility/UX each phase. |
 | **`vercel-deploy`** | Deploy the static Vite SPA (if hosting on Vercel; Netlify equivalent otherwise). |
 | **`vercel-react-best-practices`** | React performance patterns — apply the **React** guidance (it leans Next.js; we're Vite). |
-| **`naboopay`** | The one external integration: checkout, webhooks (raw-body HMAC), balance, Wave/OM, XOF. |
+| **`naboopay`** | The one external integration (**API v2** — v1 is deprecated, ADR 0026): webhooks (raw-body HMAC), transactions/payouts/accounts reads, Wave/OM, XOF. Installed per project: `curl -fsSL https://docs.naboopay.com/skills/install.sh \| NABOOPAY_SKILL_URL=https://docs.naboopay.com sh -s -- claude`. |
 | **`code-review`, `verify`, `run`, `security-review`** (built-ins) | Each phase: review the diff, run the app, security-review before `main`. |
 
 **Convex Auth** is covered via the `convex` umbrella (officer login + session
@@ -57,10 +57,10 @@ identity for `recordedBy` and the audit log).
 
 1. `README.md` — what we're building and the stack.
 2. `CONTEXT.md` — the glossary. Every term here has one canonical meaning.
-3. `docs/adr/` — all 25 ADRs. These are the decisions you must honour.
+3. `docs/adr/` — all 26 ADRs. These are the decisions you must honour.
 4. `docs/PRD.md` — product requirements & acceptance criteria.
 5. `docs/ARCHITECTURE.md` — components & data flows.
-6. `docs/DATABASE_SCHEMA.md` — the authoritative data model (8-status enum, the
+6. `docs/DATABASE_SCHEMA.md` — the authoritative data model (7-status enum, the
    balance engine, indexes).
 7. `docs/API_DESIGN.md` + `docs/API_CONTRACT.md` — the HTTP/function surface.
 8. `docs/TECHNICAL_ROADMAP.md` + `docs/IMPLEMENTATION_ROADMAP.md` — file-level map
@@ -146,7 +146,7 @@ optional:
 1. **The balance engine** (ADR 0007, 0016): per-account effect table, reversal
    sign flip, status gate, point-in-time `balanceAsOf`. Unit-test every type and
    status, including transfers (two legs), paid withdrawals, reversals, and
-   `memo`/`provisional` exclusion.
+   `memo`/`draft`/`skipped`/`committed` exclusion.
 2. **Idempotency & guards** (ADR 0005, 0019, 0020): same order twice → one record;
    refund keyed `(source, externalId, refund)`; double "mark paid"/"confirm
    draft" → money once; at most one active reversal.
@@ -160,10 +160,13 @@ Plus each milestone's acceptance checks in `docs/IMPLEMENTATION_ROADMAP.md`.
 These gate Naboopay-dependent work (Milestone 5) and go-live. They are not design
 questions; coordinate them early:
 
-- A **fresh Naboopay server API key**, account activated for production.
-- **Webhook registration** of our endpoint URL (per deployment).
-- **Shop & DaBus backend changes**: persist Naboopay's returned `order_id` and
-  call `/intake/income` on the paid/done transition.
+- A **fresh Naboopay server API key** with the **`read`** scope (v2), account
+  activated for production.
+- **Webhook registration** of our endpoint URL (per deployment, v2 payload) in the
+  dashboard under Settings → Integration → Webhooks.
+- **Shop & DaBus backend changes**: create transactions with
+  `fees_customer_side: true`, persist Naboopay's returned `order_id`, and call
+  `/intake/income` on the transition to `paid` (ADR 0026).
 - **Verified opening balances** + a university statement for the School receivable.
 - A **small test budget** (real FCFA) for live testing.
 

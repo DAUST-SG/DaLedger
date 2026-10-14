@@ -15,7 +15,7 @@ It is built for the SG finance committee: a small, closed set of officers who ne
 - **Live ledger** — computed balances for Naboopay, Wave, Orange Money, and Cash, plus a separate **School receivable** ("owed by the university"), which is never added into the SG total.
 - **Manual entry** — income, expense, transfer, school allocation, school withdrawal, and up/down adjustments, phone-first, reason required.
 - **Automatic income** — shop and DaBus payments arrive through a single idempotent intake endpoint, labelled by source.
-- **Naboopay integration** — webhook-confirmed income matching, a scheduled safety-net sweep for unmatched payments, and auto-reconciliation of the Naboopay balance.
+- **Naboopay integration** — webhook-confirmed income matching, a scheduled sweep for unmatched payments, refunds, and payouts (captured automatically with their fees), and auto-reconciliation of the Naboopay balance.
 - **Review inbox, labels, filters, CSV export** — categories, events, and sources; everything unlabelled lands in a Needs-review inbox.
 - **Reconciliation & audit log** — compare computed vs. real balances; every edit is recorded with who, when, and what.
 - **End-of-term review report** — totals by category and event, start/end balances, School movement, reconciliation history.
@@ -31,7 +31,7 @@ It is built for the SG finance committee: a small, closed set of officers who ne
 | Backend | Convex (queries, mutations, HTTP actions, scheduled functions) |
 | Database | Convex document-relational store |
 | Auth | Convex Auth (closed officer set) |
-| External API | Naboopay (`https://api.naboopay.com/api/v1`) — read/intake only |
+| External API | Naboopay API v2 (`https://api.naboopay.com/api/v2`) — read only (ADR 0026) |
 | Fonts / branding | IBM Plex Sans, DAUST SG branding |
 | Hosting | Convex (backend) + static host for the Vite SPA <!-- assumed: Vercel/Netlify or the IT Committee's GitHub-linked host --> |
 
@@ -77,7 +77,7 @@ DaLedger/
 │   ├── reconciliations.ts   # Reconcile queries & mutations
 │   ├── recurring.ts         # Recurring-template logic + cron
 │   ├── http.ts              # httpAction routes: /intake/income, /intake/naboopay
-│   ├── naboopay.ts          # Naboopay client (safety-net sweep, balance read)
+│   ├── naboopay.ts          # Naboopay v2 client (sweeps, balance read)
 │   └── crons.ts             # Scheduled jobs (sweep, monthly drafts)
 ├── src/                     # Frontend: React + Vite SPA (phone-first)
 │   ├── routes/              # Page components (Home, AddTransaction, …)
@@ -99,8 +99,8 @@ DaLedger/
 | `INTAKE_KEY_SHOP` | Secret header key the shop backend sends to `/intake/income` | Yes |
 | `INTAKE_KEY_DABUS` | Secret header key the DaBus backend sends to `/intake/income` | Yes |
 | `NABOOPAY_WEBHOOK_SECRET` | HMAC-SHA256 secret used to verify Naboopay webhooks | Yes |
-| `NABOOPAY_API_KEY` | Naboopay server API key (Bearer) for sweep & balance read | Optional <!-- assumed: pending a valid server key; core capture works without it --> |
-| `NABOOPAY_BASE_URL` | Naboopay API base, default `https://api.naboopay.com/api/v1` | No |
+| `NABOOPAY_API_KEY` | Naboopay server API key (Bearer, scope `read`) for sweeps & balance read | Optional <!-- assumed: pending a valid server key; core capture works without it --> |
+| `NABOOPAY_BASE_URL` | Naboopay API base, default `https://api.naboopay.com/api/v2` | No |
 
 > Secrets are stored as Convex environment variables (`npx convex env set …`) and never committed or exposed to the frontend.
 

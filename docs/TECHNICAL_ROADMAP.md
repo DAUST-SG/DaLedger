@@ -12,7 +12,7 @@ DaLedger/
 │   ├── auth.ts                   # currentOfficer() helper, guards
 │   ├── accounts.ts               # account queries, opening-balance seed
 │   ├── balances.ts               # computed-balance live queries
-│   ├── transactions.ts           # create / reverse / markWithdrawalPaid / recordPayout / enterPartial / list
+│   ├── transactions.ts           # create / reverse / markWithdrawalPaid / recordPayout / list
 │   ├── review.ts                 # needs-review inbox query + label mutation
 │   ├── reconciliations.ts        # reconcile mutation + freshness query
 │   ├── reports.ts                # term report aggregation query
@@ -59,7 +59,7 @@ DaLedger/
 // Entities (mirror DB tables)
 type AccountKey = "naboopay" | "wave" | "om" | "cash" | "school";
 type TxType = "income" | "expense" | "transfer" | "allocation" | "school_withdrawal" | "adjustment_up" | "adjustment_down"; // ADR 0001
-type TxStatus = "confirmed" | "needs_review" | "committed" | "paid" | "draft" | "memo" | "skipped" | "provisional"; // ADR 0003,0007,0011,0012,0013
+type TxStatus = "confirmed" | "needs_review" | "committed" | "paid" | "draft" | "memo" | "skipped"; // ADR 0003,0007,0011,0012,0026
 type TxKind = "income" | "refund"; // scopes intake idempotency (ADR 0005)
 type Source = "shop" | "dabus" | "naboopay" | "manual" | (string & {});
 
@@ -124,7 +124,6 @@ export const create = mutation(async (ctx, args: CreateTransactionInput): Promis
 export const reverse = mutation(async (ctx, args: { transactionId: string; reason: string }): Promise<{ reversalId: string }> => { /* ADR 0020: no-op if target already has an active reversal */ });
 export const markWithdrawalPaid = mutation(async (ctx, args: { transactionId: string; toAccountId: string }): Promise<{ id: string }> => { /* ADR 0019: guarded committed->paid, no-op otherwise */ });
 export const recordPayout = mutation(async (ctx, args: { fromAccountId: string; toAccountId: string; grossOut: number; netIn: number; reason: string; occurredAt?: number }): Promise<{ transferId: string; feeExpenseId: string | null }> => { /* ADR 0015: net transfer + "Provider fees" expense for (grossOut - netIn) */ });
-export const enterPartial = mutation(async (ctx, args: { provisionalId: string; amountReceived: number }): Promise<{ id: string }> => { /* ADR 0013: guarded provisional->confirmed with officer-entered amount */ });
 export const list = query(async (ctx, args: { filter?: Partial<Record<"accountId"|"categoryId"|"eventId"|"source"|"type", string>>; from?: number; to?: number; cursor?: string }): Promise<PaginatedResponse<Transaction>> => {});
 
 // convex/reports.ts
@@ -141,8 +140,10 @@ export function requireOfficer(ctx): Promise<void>;
 ```typescript
 // convex/naboopay.ts (external service wrapper)
 export function verifyWebhook(rawBody: string, signature: string, secret: string): WebhookEvent | null; // HMAC over raw bytes
-export async function listTransactions(opts: { limit: number; status?: string }): Promise<NabooTx[]>;    // GET /transaction/get-transactions
-export async function readBalance(): Promise<number>;                                                    // GET /account/
+// Naboopay API v2, base https://api.naboopay.com/api/v2, key scope `read` (ADR 0026). The tracker never creates payouts or refunds.
+export async function listTransactions(opts: { status?: string; cursor?: string }): Promise<NabooTx[]>; // GET /transactions
+export async function listPayouts(opts: { cursor?: string }): Promise<NabooPayout[]>;                   // GET /payouts
+export async function readBalance(): Promise<number>;                                                    // GET /accounts
 ```
 
 ```typescript
@@ -204,10 +205,12 @@ Naboopay webhook
 ```text
 Safety-net sweep (cron)
   crons.ts:safetyNetSweep (scheduled)
-    → naboopay.listTransactions({status:"paid"}) paginated
-    → for each paid/done order_id older than the grace window (~30 min) with no
+    → naboopay.listTransactions() paginated
+    → for each paid/paid_and_blocked order_id older than the grace window (~30 min) with no
       matching income AND no existing unmatched row → insert needs_review (deduped by order_id; ADR 0008)
-    → part_paid → insert provisional (balance-excluded) awaiting officer amount (ADR 0013)
+    → refunded order whose income has no reversal → flag once after the grace window (ADR 0026)
+    → naboopay.listPayouts() → each completed payout recorded once (idempotent on its order_id)
+      as a net transfer + "Provider fees" expense (ADR 0015, 0026)
 ```
 
 ## 5. Files to Create vs. Modify
@@ -268,7 +271,7 @@ App (ConvexProvider, Router)
 5. `http.ts` intake (income + refund) with idempotency (M2).
 6. Review inbox + filters + CSV + Event view (M3).
 7. Reconciliation + audit log (M4).
-8. `naboopay.ts` verify/sweep/balance + webhook route + cron, plus manual `recordPayout` (net transfer + fee expense) and `enterPartial` (resolve provisional) (M5).
+8. `naboopay.ts` verify/sweep/balance + webhook route + cron, payout sweep (`GET /payouts`) with manual `recordPayout` as the fallback (net transfer + fee expense), and refund flagging (M5, ADR 0026).
 9. `reports.term` + Report page (M6).
 10. `recurring.ts` + cron + Recurring page (M7 / v1.1).
-11. Edge cases: `part_paid`, refunds, offline reconnect, empty/loading/error states.
+11. Edge cases: refunds, offline reconnect, empty/loading/error states.

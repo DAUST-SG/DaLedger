@@ -29,7 +29,7 @@ flowchart TD
     subgraph External["SG-controlled & third-party"]
         SHOP[Shop backend]
         DABUS[DaBus backend]
-        NABOO[Naboopay API\napi.naboopay.com/api/v1]
+        NABOO[Naboopay API\napi.naboopay.com/api/v2]
     end
 
     UI <-->|live queries / mutations| Q
@@ -42,7 +42,7 @@ flowchart TD
     SHOP -->|POST paid order + secret key| H
     DABUS -->|POST paid order + secret key| H
     NABOO -->|signed webhook| H
-    C -->|GET /transactions, /account/| NABOO
+    C -->|GET /transactions, /payouts, /accounts| NABOO
     SHOP -->|create-transaction| NABOO
     DABUS -->|create-transaction| NABOO
 ```
@@ -74,11 +74,11 @@ flowchart TD
 
 1. **Officer records a manual expense:** UI form → `mutations.createTransaction` → validates (reason, positive integer amount, account) → inserts transaction + audit entry → live `balances` query recomputes → every device updates.
 2. **Shop sale (automatic income):** customer pays via Naboopay → shop backend confirmed → `POST /intake/income` with source key + `externalId` (+ `kind=income`) + `naboopayReference` → httpAction checks key, dedupes on `(source, externalId, kind)`, inserts income (status `confirmed`) on Naboopay account.
-3. **Naboopay webhook:** Naboopay `POST /intake/naboopay` → httpAction reads **raw body**, verifies HMAC-SHA256 → matches `order_id` to an income's `naboopayReference`. The webhook **creates nothing**: on a match it confirms, on a non-match it does nothing — removing the webhook-vs-intake race (ADR 0008).
-4. **Safety-net sweep (scheduled):** cron calls `GET /transaction/get-transactions` → a paid/done `order_id` still unmatched **after a ~30-min grace window** is inserted once as `needs_review` (deduped by `order_id`, self-healing when the real income arrives). A `part_paid` becomes a `provisional` item, excluded from balances until an officer enters the real amount (ADR 0008, 0013).
+3. **Naboopay webhook:** Naboopay `POST /intake/naboopay` → httpAction reads **raw body**, verifies HMAC-SHA256 (`X-Signature`) → matches `order_id` to an income's `naboopayReference`. The webhook **creates nothing**: on a match it confirms, on a non-match it does nothing — removing the webhook-vs-intake race (ADR 0008).
+4. **Safety-net sweep (scheduled):** cron calls `GET /transactions` → a `paid`/`paid_and_blocked` `order_id` still unmatched **after a ~30-min grace window** is inserted once as `needs_review` (deduped by `order_id`, self-healing when the real income arrives). A `refunded` order whose income has no reversal is flagged the same way (ADR 0008, 0026).
 5. **Reconciliation:** officer enters real balance → `reconciliations.create` stores computed, real, difference → optional `adjustment_up`/`adjustment_down` transaction with reason → audit entry. A later back-dated entry flips the account to "needs re-checking" (ADR 0010).
-6. **Refund:** source calls refund endpoint with original `externalId` → tracker finds the original by `(source, externalId, income)` and writes a reversal keyed `(source, externalId, refund)` — independently idempotent (ADR 0005).
-7. **Naboopay payout with fee:** manual "record a payout" takes gross-out and net-in → writes a **transfer of the net amount** + a **"Provider fees" expense** for the fee, keeping transfers neutral (ADR 0015).
+6. **Refund:** the refund itself is done in Naboopay (`GET /refund/{order_id}`), never by the tracker; the source then calls the tracker's refund endpoint with original `externalId` → tracker finds the original by `(source, externalId, income)` and writes a reversal keyed `(source, externalId, refund)` — independently idempotent (ADR 0005).
+7. **Naboopay payout with fee:** a payout sweep reads `GET /payouts` and records each completed payout once (idempotent on its `order_id`); the manual "record a payout" fallback takes gross-out and net-in. Either way it writes a **transfer of the net amount** + a **"Provider fees" expense** for the fee, keeping transfers neutral (ADR 0015, 0026).
 8. **Monthly recurring draft (scheduled, v1.1):** cron creates ≤ 1 `draft` expense per active template per month → appears in inbox → officer confirms (edits then counts) or skips (terminal `skipped`, not recreated) (ADR 0012).
 9. **Term report:** `reports.term(from, to)` → `balanceAsOf(start−1)` and `balanceAsOf(end)` by `occurredAt` → period entries grouped by category/event → a full **movement reconciliation** (`start + income − expense + paid-withdrawals-in ± adjustments + transfers = end`) so nothing is unexplained (ADR 0016, 0021). Event view uses the same engine all-time; the report uses it period-scoped (ADR 0022).
 
@@ -87,7 +87,7 @@ flowchart TD
 | Service | Purpose | Notes / Cost |
 |---------|---------|--------------|
 | Convex | Backend, DB, auth, HTTP, cron, live queries | Free tier likely sufficient for SG volume <!-- assumed --> |
-| Naboopay | Payment gateway for shop/DaBus; income & balance data | `…/api/v1`; Bearer auth; no sandbox; rate limit 100 req/60 s; no payout/fee feed |
+| Naboopay | Payment gateway for shop/DaBus; income & balance data | `…/api/v2` (ADR 0026); Bearer auth, `read` scope; no sandbox; rate limit 100 req/60 s; webhook and payout feed report exact fees |
 | Static host (Vite build) | Serve the SPA | Vercel/Netlify free tier <!-- assumed --> |
 | Shop backend | Reports confirmed sales to intake | SG-controlled; needs a small integration change |
 | DaBus backend | Reports confirmed bookings to intake | SG-controlled; needs a small integration change |
