@@ -3,13 +3,16 @@
 ## Branch Strategy
 
 ```text
-main            # always deployable; protected
-dev             # integration branch; features merge here first
-feat/<name>     # new feature          e.g. feat/intake-endpoint
-fix/<name>      # bug fix              e.g. fix/balance-transfer
-chore/<name>    # tooling/docs/deps    e.g. chore/npm-audit
-infra/<name>    # schema/config/deploy e.g. infra/convex-schema
+main                  # always deployable; protected; changes only via a dev → main PR
+dev                   # integration branch; features merge here first
+<type>/m<N>-<slug>    # milestone work   e.g. feat/m1-schema-balances, infra/m1-schema
+<type>/<slug>         # non-milestone    e.g. fix/balance-transfer, chore/npm-audit
 ```
+
+Branch names carry the `CONTRIBUTING` type prefix (`feat`/`fix`/`chore`/`infra`)
+and, for roadmap work, the milestone (`m1`–`m7`). One PR per milestone into
+`dev` (see `CLAUDE.md` §3). `main` changes only via a single `dev → main` PR at
+go-live.
 
 ## Commit Convention
 
@@ -19,7 +22,7 @@ Conventional Commits:
 feat(intake): idempotent /intake/income with per-source key
 fix(balances): exclude committed withdrawals from totals
 chore(deps): bump convex to latest
-infra(schema): add source+externalId unique index
+infra(schema): enforce (source, externalId, kind) uniqueness in-mutation
 docs(prd): clarify part_paid handling
 ```
 

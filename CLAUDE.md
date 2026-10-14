@@ -22,7 +22,10 @@ the path to production.
    number traces back to an audited entry.** This is the spine of the whole
    design — balances, reversals, adjustments, opening positions, and reports all
    obey it. Hold the line.
-3. **Money is integer FCFA.** No floats, ever (`v.int64()` in Convex).
+3. **Money is integer FCFA.** No floats, ever. Store as **`v.number()`** with a
+   runtime `Number.isInteger(amount) && amount > 0` guard at every write
+   boundary (ADR 0024) — *not* `v.int64()` (bigint would clash with the `number`
+   TS types).
 4. **Secrets are never committed.** See `docs/SECURITY.md`.
 5. **Plan → agree → build.** No milestone starts coding before Pikou approves its
    plan (§3).
@@ -78,8 +81,9 @@ Two long-lived branches, each with its **own Convex deployment**:
 | **`dev`** | dev deployment | **mock / test** data, test keys | Where all work lands and is validated. |
 | **`main`** | prod deployment | **live / real** money data, live keys | Production. Only validated, tested code. |
 
-- **Feature branches** are cut from `dev`, named per milestone (e.g.
-  `m1-schema-balances`). Never commit straight to `dev` or `main`.
+- **Feature branches** are cut from `dev`, named `<type>/m<N>-<slug>` (e.g.
+  `feat/m1-schema-balances`, `infra/m1-schema`) — the `CONTRIBUTING.md` type
+  prefix plus the milestone. Never commit straight to `dev` or `main`.
 - **Secrets are per-deployment** (Convex env vars): dev gets test intake keys and
   the Naboopay test/placeholder key; prod gets the live ones. Never in the client
   bundle, never committed (`docs/SECURITY.md`).
@@ -98,7 +102,7 @@ PR'd back into `dev` — never `main`.** `main` only ever changes via a single
    satisfy, and how you'll test it. **Do not write code until Pikou approves the
    plan.**
 2. **Implement** on a feature branch **cut from `dev`** (e.g. `git switch dev &&
-   git switch -c m1-schema-balances`). Never branch from `main`.
+   git switch -c feat/m1-schema-balances`). Never branch from `main`.
 3. **Test** (see §5) — the milestone's acceptance checks in the roadmap must pass.
 4. **Open a PR into `dev`** (base = `dev`, never `main`). One PR per milestone,
    scoped to that milestone so the review is tractable. Describe what was built

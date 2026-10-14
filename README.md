@@ -48,8 +48,8 @@ It is built for the SG finance committee: a small, closed set of officers who ne
 
 ```bash
 # 1. Clone
-git clone https://github.com/<it-committee-org>/finance-tracker.git
-cd finance-tracker
+git clone https://github.com/DAUST-SG/DaLedger.git
+cd DaLedger
 
 # 2. Install dependencies
 npm install
@@ -68,7 +68,7 @@ npm run dev
 ## Project Structure
 
 ```text
-finance-tracker/
+DaLedger/
 ├── convex/                  # Backend: schema, functions, HTTP endpoints, crons
 │   ├── schema.ts            # Table definitions (accounts, transactions, …)
 │   ├── auth.config.ts       # Convex Auth configuration

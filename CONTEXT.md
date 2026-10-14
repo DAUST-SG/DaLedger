@@ -25,8 +25,9 @@ share the order ID yet are distinct, each-idempotent records. A refund with no
 matching income goes to [[Needs-review]]. See ADR 0005.
 
 ### Needs-review
-A derived inbox of unfinished items, defined as `status ∈ {needs_review, draft}`
-— never a stored flag. Fed by auto-captured items lacking a category (sentinel
+A derived inbox of unfinished items, defined as
+`status ∈ {needs_review, draft, provisional}` — never a stored flag. Fed by
+auto-captured items lacking a category (sentinel
 category `Unlabeled`), unmatched Naboopay payments, and recurring drafts.
 Invariant: an item is never `confirmed` while its category is `Unlabeled`;
 assigning a real category is the one action that flips `needs_review →
