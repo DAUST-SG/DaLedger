@@ -260,7 +260,7 @@ App (ConvexProvider, Router)
 
 ## 7. Build Order
 
-1. `convex/schema.ts` + types in `src/types.ts` (unblocks everything).
+1. `convex/schema.ts` (types come from `convex/_generated`; unblocks everything).
 2. Convex Auth + `requireOfficer` + Login page.
 3. `transactions.create` + `balances.list` + Home + AddTransaction (M1 acceptance).
 4. `transactions.reverse` + transfer/withdrawal handling.
