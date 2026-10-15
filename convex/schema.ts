@@ -126,6 +126,13 @@ export default defineSchema({
     at: v.number(),
   }).index("by_targetId", ["targetId"]),
 
+  // One row per Naboopay sweep run, so Review can show when it last worked (M5).
+  sweepRuns: defineTable({
+    at: v.number(),
+    ok: v.boolean(),
+    message: v.string(),
+  }).index("by_at", ["at"]),
+
   recurringTemplates: defineTable({
     reason: v.string(),
     amount: v.number(),

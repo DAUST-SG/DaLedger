@@ -3,6 +3,7 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { auth } from "./auth";
 import { sourceForKey } from "./intakeKeys";
+import { verifySignature } from "./naboopay";
 
 const http = httpRouter();
 
@@ -114,6 +115,38 @@ http.route({
       return json(201, { reversalId: result.reversalId, reversalOf: result.reversalOf, amount: result.amount });
     }),
   ),
+});
+
+// POST /intake/naboopay: Naboopay's signed webhook (ADR 0008, 0026). It CREATES
+// NOTHING: on a match it confirms, otherwise the sweep handles it after the grace
+// window. The signature is checked over the raw bytes before any parsing.
+http.route({
+  path: "/intake/naboopay",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const secret = process.env.NABOOPAY_WEBHOOK_SECRET;
+    if (!secret) return json(503, { error: { code: "SERVER_ERROR", message: "Webhook secret not configured." } });
+    const raw = await req.arrayBuffer();
+    if (!(await verifySignature(raw, req.headers.get("X-Signature"), secret))) {
+      return fail("UNAUTHORIZED", "Invalid webhook signature.");
+    }
+    let orderId: unknown;
+    let amount: unknown;
+    try {
+      ({ order_id: orderId, amount } = JSON.parse(new TextDecoder().decode(raw)));
+    } catch {
+      return json(200, { matched: false, action: "none", note: "unreadable body" });
+    }
+    if (typeof orderId !== "string") return json(200, { matched: false, action: "none" });
+    const sale = await ctx.runQuery(internal.sweep.findSale, { orderId });
+    if (!sale) {
+      return json(200, { matched: false, action: "none", note: "left to the safety-net sweep after the grace window" });
+    }
+    if (typeof amount === "number" && amount !== sale.amount) {
+      console.warn(`Naboopay order ${orderId}: webhook amount ${amount} ≠ recorded ${sale.amount}`);
+    }
+    return json(200, { matched: true, incomeId: sale.id });
+  }),
 });
 
 export default http;

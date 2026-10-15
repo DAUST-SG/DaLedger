@@ -4,6 +4,7 @@
 - **Date:** 2026-10-14
 - **Deciders:** Pikou (Lead, IT Committee)
 - **Supersedes:** ADR 0013. **Revises:** ADR 0015. **Amends:** ADR 0005, 0006, 0007.
+- **Revised by:** ADR 0032 (the sweep *records* refunds, wrong-fee fees and payouts instead of flagging them; no manual `recordPayout` in v1) and ADR 0031 (late sale takes over its placeholder)
 
 ## Context
 

@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
+- **Amended by:** ADR 0032 — an expense may wait for its category only while `needs_review` (a Naboopay payout to an outside wallet); it is never `confirmed` without one
 
 ## Context
 

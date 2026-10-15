@@ -66,7 +66,8 @@ The header name `X-Signature` is confirmed by Naboopay's v2 docs. Webhooks are r
 | Create transaction | `transactions.create` (mutation) | Manual income/expense/transfer/allocation/withdrawal/`adjustment_up`/`adjustment_down` | Session |
 | Reverse transaction | `transactions.reverse` (mutation) | Create a `reversalOf` near-copy (same type/category/event, flipped by sign rule); at most one active reversal per target, no-op if already reversed (ADR 0020) | Session |
 | Mark withdrawal paid | `transactions.markWithdrawalPaid` (mutation) | Guarded `committed` → `paid`, no-op otherwise (ADR 0003, 0019) | Session |
-| Record payout | `transactions.recordPayout` (mutation) | Net transfer + "Provider fees" expense from gross-out/net-in (ADR 0015) | Session |
+| Naboopay balance | `naboopay.readBalance` (action) | The `main` account balance from `GET /accounts`, for the Reconcile screen's "Read from Naboopay" button (read-only) | Session |
+| Detected by Naboopay | `sweep.detected` (query) | Rows the sweep recorded (unreported payments, refunds, fees, payouts) and the last sweep run (ADR 0031, 0032) | Session |
 | Review inbox | `review.list`, `review.count` (queries) | Items with status `needs_review` or `draft`: unlabelled, unmatched, drafts. Labelled with `transactions.editLabels` (ADR 0006) | Session |
 | Reconcile | `reconciliations.create` (mutation) | Record a check; with `adjust`, write an `adjustment_up`/`_down` for `real − computed`, dated at the check (ADR 0001) | Session |
 | Reconciliation status | `reconciliations.status`, `.history`, `.preview` (queries) | Last check per account, value-based staleness (ADR 0010, amended), past checks, computed balance now | Session |
