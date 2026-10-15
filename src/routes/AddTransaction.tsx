@@ -24,6 +24,7 @@ const field = "h-12 rounded-lg border border-line bg-white px-3 text-base w-full
 export default function AddTransaction() {
   const catalog = useQuery(api.catalog.forEntry);
   const create = useMutation(api.transactions.create);
+  const recent = useQuery(api.transactions.recentReasons);
   const navigate = useNavigate();
 
   const [type, setType] = useState<TxType>("expense");
@@ -51,6 +52,15 @@ export default function AddTransaction() {
     setCategoryId("");
     setToAccountId("");
     if (t === "allocation" || t === "school_withdrawal" || !cash.some((a) => a._id === accountId)) setAccountId("");
+  }
+
+  // Picking a recent reason also fills its category, if none is chosen yet (PRD §5.2).
+  function onReason(value: string) {
+    setReason(value);
+    const match = recent?.find((r) => r.type === type && r.reason === value);
+    if (match?.categoryId && !categoryId && catalog?.categories.some((c) => c._id === match.categoryId)) {
+      setCategoryId(match.categoryId);
+    }
   }
 
   async function onSubmit(e: FormEvent) {
@@ -123,7 +133,7 @@ export default function AddTransaction() {
         ) : (
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">{type === "transfer" ? "From" : "Account"}</span>
-            <select id="account" value={accountId} onChange={(e) => setAccountId(e.target.value)} className={field}>
+            <select id="account" name="account" value={accountId} onChange={(e) => setAccountId(e.target.value)} className={field}>
               <option value="" disabled>Choose…</option>
               {fromOptions.map((a) => <option key={a._id} value={a._id}>{a.name}</option>)}
             </select>
@@ -133,7 +143,7 @@ export default function AddTransaction() {
         {needsTo && (
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">{type === "transfer" ? "To" : "Will be paid into (optional)"}</span>
-            <select id="to-account" value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} className={field}>
+            <select id="to-account" name="to-account" value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} className={field}>
               <option value="">{type === "transfer" ? "Choose…" : "Decide later"}</option>
               {cash.filter((a) => a._id !== accountId).map((a) => <option key={a._id} value={a._id}>{a.name}</option>)}
             </select>
@@ -143,7 +153,7 @@ export default function AddTransaction() {
         {needsCategory && (
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">Category</span>
-            <select id="category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={field}>
+            <select id="category" name="category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={field}>
               <option value="" disabled>Choose…</option>
               {catalog?.categories.filter((c) => c.direction === type).map((c) => (
                 <option key={c._id} value={c._id}>{c.name}</option>
@@ -155,16 +165,20 @@ export default function AddTransaction() {
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium">Reason</span>
           <input
-            id="reason" value={reason} onChange={(e) => setReason(e.target.value)}
-            placeholder={type === "expense" ? "e.g. Catering for the Gala" : "What is this for?"}
+            id="reason" name="reason" value={reason} onChange={(e) => onReason(e.target.value)} list="reason-suggestions" autoComplete="off"
+            placeholder={type === "expense" ? "e.g. Catering for the Gala…" : "What is this for?"}
             className={field}
           />
         </label>
 
+        <datalist id="reason-suggestions">
+          {recent?.filter((r) => r.type === type).map((r) => <option key={r.reason} value={r.reason} />)}
+        </datalist>
+
         {(catalog?.events.length ?? 0) > 0 && (
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">Event (optional)</span>
-            <select id="event" value={eventId} onChange={(e) => setEventId(e.target.value)} className={field}>
+            <select id="event" name="event" value={eventId} onChange={(e) => setEventId(e.target.value)} className={field}>
               <option value="">None</option>
               {catalog?.events.map((ev) => <option key={ev._id} value={ev._id}>{ev.name}</option>)}
             </select>
@@ -174,7 +188,7 @@ export default function AddTransaction() {
         {type !== "school_withdrawal" && (
           <label className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">Date (optional, defaults to now)</span>
-            <input id="date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={field} />
+            <input id="date" name="date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={field} />
           </label>
         )}
 

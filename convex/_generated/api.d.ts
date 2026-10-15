@@ -12,10 +12,13 @@ import type * as audit from "../audit.js";
 import type * as auth from "../auth.js";
 import type * as balances from "../balances.js";
 import type * as catalog from "../catalog.js";
+import type * as events from "../events.js";
 import type * as http from "../http.js";
 import type * as intake from "../intake.js";
 import type * as intakeKeys from "../intakeKeys.js";
 import type * as ledger from "../ledger.js";
+import type * as reports from "../reports.js";
+import type * as review from "../review.js";
 import type * as seed from "../seed.js";
 import type * as transactions from "../transactions.js";
 
@@ -30,10 +33,13 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   balances: typeof balances;
   catalog: typeof catalog;
+  events: typeof events;
   http: typeof http;
   intake: typeof intake;
   intakeKeys: typeof intakeKeys;
   ledger: typeof ledger;
+  reports: typeof reports;
+  review: typeof review;
   seed: typeof seed;
   transactions: typeof transactions;
 }>;

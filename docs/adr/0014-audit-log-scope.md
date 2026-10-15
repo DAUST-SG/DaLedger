@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
-- **Amended by:** ADR 0026 (`enter_partial` / part_paid removed)
+- **Amended by:** ADR 0026 (`enter_partial` / part_paid removed); **refined by ADR 0030** (only labels, category/event/reason, are editable in place; money fields are reverse-and-re-enter)
 
 ## Context
 

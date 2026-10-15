@@ -13,7 +13,8 @@ DaLedger/
 │   ├── accounts.ts               # account queries, opening-balance seed
 │   ├── balances.ts               # computed-balance live queries
 │   ├── transactions.ts           # create / reverse / markWithdrawalPaid / cancelWithdrawal / recordPayout / list
-│   ├── review.ts                 # needs-review inbox query + label mutation
+│   ├── review.ts                 # needs-review inbox list + count (labelling: transactions.editLabels)
+│   ├── events.ts                 # add / close / reopen events
 │   ├── reconciliations.ts        # reconcile mutation + freshness query
 │   ├── reports.ts                # term report aggregation query
 │   ├── recurring.ts              # template CRUD + draft generation (v1.1)
