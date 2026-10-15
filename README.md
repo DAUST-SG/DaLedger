@@ -96,7 +96,8 @@ DaLedger/
 |----------|-------------|----------|
 | `CONVEX_DEPLOYMENT` | Convex deployment identifier (set by `convex dev`) | Yes |
 | `VITE_CONVEX_URL` | Convex URL used by the React client | Yes |
-| `INTAKE_KEY_SHOP` | Secret header key the shop backend sends to `/intake/income` | Yes |
+| `INTAKE_SOURCES` | Comma-separated intake sources, e.g. `shop,dabus` (Convex cannot list env vars) | Yes |
+| `INTAKE_KEY_SHOP` | Secret header key the shop backend sends to `/intake/income` (≥ 16 characters) | Yes |
 | `INTAKE_KEY_DABUS` | Secret header key the DaBus backend sends to `/intake/income` | Yes |
 | `NABOOPAY_WEBHOOK_SECRET` | HMAC-SHA256 secret used to verify Naboopay webhooks | Yes |
 | `NABOOPAY_API_KEY` | Naboopay server API key (Bearer, scope `read`) for sweeps & balance read | Optional <!-- assumed: pending a valid server key; core capture works without it --> |

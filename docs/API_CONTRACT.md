@@ -10,6 +10,12 @@ Full request/response shapes for the machine-to-machine HTTP layer and the core 
 
 Record one confirmed shop/DaBus payment. Idempotent on `(source, externalId, kind)` with `kind=income` (ADR 0005).
 
+**For the shop and DaBus backends**
+- Call this **only on the transition to `paid`**, never at checkout. There is no "pending" path, so an unpaid order can never appear.
+- Retry on any 5xx or network error. Retries are safe: a repeat returns `200` with `duplicate: true` and creates nothing.
+- **Category:** send `category` if you know it. The tracker uses it if it names an income category, else your source's default, else `Unlabeled` for an officer to label (ADR 0029). A category is never a reason for an error.
+- **Event:** an unknown or closed event name is dropped, not rejected; the sale is still recorded.
+
 **Request**
 
 ```json
@@ -87,7 +93,19 @@ Reverse a previously recorded income.
 **Response (error) — 404 Not Found**
 
 ```json
-{ "error": { "code": "NOT_FOUND", "message": "No income found for (shop, ORD-1042)." } }
+{ "error": { "code": "NOT_FOUND", "message": "No income found for (shop, ORD-1042). Retry later." } }
+```
+
+> **Backends must treat this 404 as retryable**, not as a final client error.
+> Nothing is written. The usual cause is a refund that reached the tracker before
+> its sale did; the next retry, after the sale lands, creates the reversal. A sale
+> that was never captured is caught by the M5 sweep (ADR 0026) and by Naboopay
+> reconciliation (ADR 0005, amended).
+
+**Response (already refunded) — 200 OK** — a repeat, or a sale an officer already reversed by hand (ADR 0020). Nothing new is written.
+
+```json
+{ "reversalId": "k1b…", "duplicate": true }
 ```
 
 ---

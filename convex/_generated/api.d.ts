@@ -13,6 +13,8 @@ import type * as auth from "../auth.js";
 import type * as balances from "../balances.js";
 import type * as catalog from "../catalog.js";
 import type * as http from "../http.js";
+import type * as intake from "../intake.js";
+import type * as intakeKeys from "../intakeKeys.js";
 import type * as ledger from "../ledger.js";
 import type * as seed from "../seed.js";
 import type * as transactions from "../transactions.js";
@@ -29,6 +31,8 @@ declare const fullApi: ApiFromModules<{
   balances: typeof balances;
   catalog: typeof catalog;
   http: typeof http;
+  intake: typeof intake;
+  intakeKeys: typeof intakeKeys;
   ledger: typeof ledger;
   seed: typeof seed;
   transactions: typeof transactions;

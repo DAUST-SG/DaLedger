@@ -1,4 +1,4 @@
-import { mutation, query, type QueryCtx } from "./_generated/server";
+import { mutation, query, type MutationCtx, type QueryCtx } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { currentOfficer } from "./auth";
@@ -66,8 +66,8 @@ export const create = mutation({
   },
 });
 
-/** True when `id` has a reversal that is not itself reversed (ADR 0020). */
-async function activeReversal(ctx: QueryCtx, id: Id<"transactions">): Promise<Id<"transactions"> | null> {
+/** The reversal of `id` that is not itself reversed, if any (ADR 0020). */
+export async function activeReversal(ctx: QueryCtx, id: Id<"transactions">): Promise<Id<"transactions"> | null> {
   const reversals = await ctx.db
     .query("transactions")
     .withIndex("by_reversalOf", (q) => q.eq("reversalOf", id))
@@ -86,36 +86,65 @@ export const reverse = mutation({
     const officer = await currentOfficer(ctx);
     const target = await getOrThrow(ctx, args.transactionId, "transaction");
     if (args.reason.trim() === "") throw new ConvexError("A reason is required.");
-    // ponytail: no ADR covers cancelling an unpaid withdrawal; refuse rather than
-    // leave a reversal that stays at 0 while the original later becomes paid.
+    // A committed withdrawal moved no money, so it is abandoned via
+    // transactions.cancelWithdrawal (ADR 0028), not reversed — a reversal copy
+    // would sit at 0 while the original could still be marked paid.
     if (target.status === "committed") {
-      throw new ConvexError("This withdrawal is not paid yet, so there is nothing to reverse.");
+      throw new ConvexError("This withdrawal is not paid yet — cancel it instead of reversing (ADR 0028).");
     }
 
     const existing = await activeReversal(ctx, target._id);
     if (existing) return { reversalId: existing, created: false }; // guarded no-op
 
-    const doc = {
-      type: target.type,
-      amount: target.amount,
-      occurredAt: args.occurredAt ?? Date.now(),
-      accountId: target.accountId,
-      toAccountId: target.toAccountId,
+    const reversalId = await writeReversal(ctx, target, {
       reason: args.reason.trim(),
-      categoryId: target.categoryId,
-      eventId: target.eventId,
-      source: "manual",
-      kind: "income" as const,
-      status: target.status,
+      occurredAt: args.occurredAt ?? Date.now(),
       recordedBy: officer._id,
-      reversalOf: target._id,
-      createdAt: Date.now(),
-    };
-    const reversalId = await ctx.db.insert("transactions", doc);
-    await writeAudit(ctx, { actor: officer._id, action: "reverse", targetId: reversalId, after: changedFields({}, doc).after });
+      source: "manual",
+      kind: "income",
+    });
     return { reversalId, created: true };
   },
 });
+
+/**
+ * Insert a near-copy of `target` that cancels it (ADR 0002), plus its audit entry.
+ * Callers check `activeReversal` first so a target has at most one (ADR 0020).
+ */
+export async function writeReversal(
+  ctx: MutationCtx,
+  target: Doc<"transactions">,
+  by: {
+    reason: string;
+    occurredAt: number;
+    recordedBy: Id<"users"> | string;
+    source: string;
+    kind: "income" | "refund";
+    externalId?: string;
+  },
+): Promise<Id<"transactions">> {
+  const doc = {
+    type: target.type,
+    amount: target.amount,
+    occurredAt: by.occurredAt,
+    accountId: target.accountId,
+    toAccountId: target.toAccountId,
+    reason: by.reason,
+    categoryId: target.categoryId,
+    eventId: target.eventId,
+    source: by.source,
+    kind: by.kind,
+    externalId: by.externalId,
+    naboopayReference: target.naboopayReference,
+    status: target.status,
+    recordedBy: by.recordedBy,
+    reversalOf: target._id,
+    createdAt: Date.now(),
+  };
+  const reversalId = await ctx.db.insert("transactions", doc);
+  await writeAudit(ctx, { actor: by.recordedBy, action: "reverse", targetId: reversalId, after: changedFields({}, doc).after });
+  return reversalId;
+}
 
 /** Guarded committed → paid (ADR 0003, 0019). A second call is a no-op. */
 export const markWithdrawalPaid = mutation({
