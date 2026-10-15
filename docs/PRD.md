@@ -57,6 +57,9 @@ Within 12 months, the SG runs entirely on Finance Tracker: officers record every
 - As an **officer**, I want recurring expense templates that create monthly drafts so that regular bills are not forgotten.
 - As the **President**, I want to approve withdrawals before they are paid. <!-- assumed: explicitly deferred past v1 in the brief -->
 
+### Future — v2 (deferred, not scheduled)
+- As the **Treasurer**, I want to see what part of the money held belongs to each event or fundraising campaign (its *fund*), plus a General fund, so I know how much of each campaign's money is left. Spec: [`docs/v2/FUNDS.md`](v2/FUNDS.md).
+
 ## 5. Feature Specifications
 
 ### 5.1 Ledger & live balances

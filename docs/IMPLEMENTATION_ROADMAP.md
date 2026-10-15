@@ -194,3 +194,7 @@
 - [ ] End-of-term review report — Sprint 7
 - [ ] Offline reconnect (native) — Sprint 7
 - [ ] Recurring expense templates (v1.1) — Sprint 8
+
+## v2 backlog (deferred, not scheduled)
+
+- [ ] Funds: split the total held by event / fundraising campaign + a General fund — spec in [`docs/v2/FUNDS.md`](v2/FUNDS.md)
