@@ -8,7 +8,7 @@
 
 > SQL is shown below as a portable illustration of indexes, relationships, and access rules. In Convex these map to `defineTable`, `.index()`, and function-level auth checks respectively. The authoritative definition lives in `convex/schema.ts`.
 
-> **Decision records:** this schema reflects ADRs 0001–0025 in `docs/adr/`. Where
+> **Decision records:** this schema reflects ADRs 0001–0030 in `docs/adr/`. Where
 > a field or rule cites an ADR, that record is the rationale of record.
 
 ## Tables
@@ -41,7 +41,7 @@
 | `kind` | enum | not null | `income`\|`refund` — scopes intake idempotency so a sale and its refund are distinct records (ADR 0005). `income` for all non-intake entries |
 | `externalId` | string | null | Source system id; unique with `(source, kind)` |
 | `naboopayReference` | string | null | Naboopay `order_id`, for feed matching |
-| `status` | enum | not null | `confirmed`\|`needs_review`\|`committed`\|`paid`\|`draft`\|`memo`\|`skipped`\|`provisional` (see status table below) |
+| `status` | enum | not null | `confirmed`\|`needs_review`\|`committed`\|`paid`\|`draft`\|`memo`\|`skipped`\|`cancelled` (see status table below; ADR 0026 removed `provisional`, ADR 0028 added `cancelled`) |
 | `receiptUrl` | string | null | Optional photo/PDF |
 | `recordedBy` | ref → users / string | not null | Officer id, or source name for automatic |
 | `reversalOf` | ref → transactions | null | The transaction this one cancels. A target has **at most one active reversal**; un-reverse by reversing the reversal (ADR 0020) |
@@ -49,7 +49,7 @@
 | `draftMonth` | string | null | `"YYYY-MM"` of a recurring draft's due month; the one-per-month key (null otherwise) (ADR 0025) |
 | `createdAt` | timestamp | not null | When the record was created in the app |
 
-#### Status values and their effect on balances (ADR 0007, 0011, 0012, 0013)
+#### Status values and their effect on balances (ADR 0007, 0011, 0012, 0026, 0028)
 
 | Status | In Needs-review inbox? | Counts toward balances? | Meaning |
 |--------|------------------------|-------------------------|---------|
@@ -60,7 +60,7 @@
 | `draft` | yes | no | Recurring-template draft awaiting confirmation (v1.1) |
 | `skipped` | no | no | A recurring draft the officer skipped; kept so the job can't recreate it (ADR 0012) |
 | `memo` | no | no (but **included in reports**) | Pre-cutover event summary; the one place balances and reports diverge (ADR 0011) |
-| `provisional` | yes | no | A Naboopay `part_paid` of unknown actual amount, awaiting an officer-entered figure (ADR 0013) |
+| `cancelled` | no | no | An approved school withdrawal that will not happen; guarded `committed → cancelled` (ADR 0028) |
 
 #### Balance formula (ADR 0007)
 
@@ -89,7 +89,7 @@ the home screen; never hard-blocked.
 | `_id` | id | pk | Category id |
 | `name` | string | unique | e.g. Shop sales, Catering, Provider fees, Unlabeled |
 | `direction` | enum | not null | `income` \| `expense`. A **write-time guard**: an `income` entry may use only an income-direction category, an `expense` entry only an expense-direction one (ADR 0009) |
-| `isSystem` | bool | not null | True for `Unlabeled` / `Provider fees`. `Unlabeled` is only ever applied to auto-captured income (ADR 0009); `Provider fees` is the category for Naboopay payout fees (ADR 0015) |
+| `isSystem` | bool | not null | True for `Unlabeled` / `Provider fees`. `Unlabeled` is only ever applied to auto-captured income (ADR 0009); `Provider fees` is the category for Naboopay fees (ADR 0015, 0026) |
 
 ### events
 
@@ -112,10 +112,14 @@ the home screen; never hard-blocked.
 | `checkedBy` | ref → users | not null | Officer |
 | `checkedAt` | timestamp | not null | When checked |
 
-> **Staleness is derived, not stored** (ADR 0010): a reconciliation is "stale /
-> needs re-checking" when a transaction dated (`occurredAt`) on-or-before its
-> `checkedAt` was *written* (`createdAt`) or edited after it — e.g. a back-dated
-> receipt. Back-dating is allowed; periods are never hard-locked.
+> **Staleness is derived, not stored** (ADR 0010, amended in M4): a
+> reconciliation is "stale / needs re-checking" when `balanceAsOf(account,
+> checkedAt)`, recomputed now, differs from what the check ended at (`realBalance`
+> if it was adjusted, else `computedBalance`). Back-dated entries, back-dated
+> reversals and withdrawals marked paid with an earlier date all trip it.
+> Back-dating is allowed; periods are never hard-locked.
+>
+> **Real balances:** whole FCFA; 0 is allowed; negative only for School (ADR 0017).
 
 ### users
 
@@ -133,7 +137,7 @@ the home screen; never hard-blocked.
 |--------|------|-------------|-------------|
 | `_id` | id | pk | Audit entry id |
 | `actor` | ref → users / string | not null | Who made the change |
-| `action` | string | not null | `create`\|`edit`\|`reverse`\|`adjust`\|`mark_paid`\|`confirm_draft`\|`skip_draft`\|`assign_category`\|`enter_partial`\|… (ADR 0014) |
+| `action` | string | not null | `create`\|`edit`\|`reverse`\|`adjust`\|`mark_paid`\|`cancel_withdrawal`\|`confirm_draft`\|`skip_draft`\|`assign_category`\|… (ADR 0014) |
 | `targetId` | ref → transactions | null | Affected transaction |
 | `before` | json | null | **Changed fields only** before the write (empty for `create`) |
 | `after` | json | null | **Changed fields only** after the write |
@@ -175,6 +179,8 @@ CREATE INDEX idx_tx_naboopay_ref ON transactions(naboopayReference);
 CREATE INDEX idx_tx_account_occurred ON transactions(accountId, occurredAt);
 -- Review inbox
 CREATE INDEX idx_tx_status ON transactions(status);
+-- Transactions list: order + date range; other filters apply within the range (M3)
+CREATE INDEX idx_tx_occurred ON transactions(occurredAt);
 -- Event rollups
 CREATE INDEX idx_tx_event ON transactions(eventId);
 -- One draft per template per month: draftMonth is a "YYYY-MM" field (ADR 0025)
@@ -222,22 +228,28 @@ POLICY guarded_transition ON transactions
   USING (new.status IS NULL OR old.status = expected_from(action));
 ```
 
-> **Guarded transitions (ADR 0019).** `markWithdrawalPaid` requires `committed`;
-> `confirmDraft`/`skipDraft` require `draft`; `assignCategory` requires
-> `needs_review`; entering a part_paid amount requires `provisional`. Convex
+> **Guarded transitions (ADR 0019).** `markWithdrawalPaid` and `cancelWithdrawal`
+> require `committed`; `confirmDraft`/`skipDraft` require `draft`; `assignCategory`
+> requires `needs_review`. Convex
 > serialises mutations, so the first attempt flips the status and wins and any
 > second attempt is a clean no-op — money moves exactly once.
 
-## Migrations
+## Schema changes and seed data
+
+Convex applies `convex/schema.ts` itself on every deploy, so there are no
+numbered migration files. Changes to tables that already hold data follow the
+`v.optional` → backfill → require pattern. Seed data lives in one file:
 
 ```text
 convex/
-└── migrations/
-    ├── 0001_init_core.ts          # accounts, transactions, categories, events
-    ├── 0002_users_auth.ts         # users table + Convex Auth wiring
-    ├── 0003_reconciliations.ts    # reconciliations + auditLog
-    ├── 0004_intake_indexes.ts     # (source, externalId, kind) index + in-mutation uniqueness, naboopayReference
-    ├── 0005_seed_accounts.ts      # 5 accounts + opening balances (cutover)
-    ├── 0006_seed_categories.ts    # starting category list
-    └── 0007_recurring.ts          # recurringTemplates + one-draft-per-month index (v1.1)
+├── schema.ts      # every table and index above
+└── seed.ts        # run once per deployment with `npx convex run`:
+                   #   seed:accounts    5 accounts + opening balances, starting categories
+                   #                    (never touches an existing row: ADR 0018)
+                   #   seed:addOfficer  create an officer with a starting password
+                   #   seed:addEvent    add an event tag
 ```
+
+`users.role` and `users.active` are optional in the Convex schema because Convex
+Auth inserts `users` rows itself; officer code treats a missing `active` as
+inactive, so an officer exists only once `seed:addOfficer` has created them.

@@ -10,6 +10,12 @@ Full request/response shapes for the machine-to-machine HTTP layer and the core 
 
 Record one confirmed shop/DaBus payment. Idempotent on `(source, externalId, kind)` with `kind=income` (ADR 0005).
 
+**For the shop and DaBus backends**
+- Call this **only on the transition to `paid`**, never at checkout. There is no "pending" path, so an unpaid order can never appear.
+- Retry on any 5xx or network error. Retries are safe: a repeat returns `200` with `duplicate: true` and creates nothing.
+- **Category:** send `category` if you know it. The tracker uses it if it names an income category, else your source's default, else `Unlabeled` for an officer to label (ADR 0029). A category is never a reason for an error.
+- **Event:** an unknown or closed event name is dropped, not rejected; the sale is still recorded.
+
 **Request**
 
 ```json
@@ -87,7 +93,19 @@ Reverse a previously recorded income.
 **Response (error) — 404 Not Found**
 
 ```json
-{ "error": { "code": "NOT_FOUND", "message": "No income found for (shop, ORD-1042)." } }
+{ "error": { "code": "NOT_FOUND", "message": "No income found for (shop, ORD-1042). Retry later." } }
+```
+
+> **Backends must treat this 404 as retryable**, not as a final client error.
+> Nothing is written. The usual cause is a refund that reached the tracker before
+> its sale did; the next retry, after the sale lands, creates the reversal. A sale
+> that was never captured is caught by the M5 sweep (ADR 0026) and by Naboopay
+> reconciliation (ADR 0005, amended).
+
+**Response (already refunded) — 200 OK** — a repeat, or a sale an officer already reversed by hand (ADR 0020). Nothing new is written.
+
+```json
+{ "reversalId": "k1b…", "duplicate": true }
 ```
 
 ---
@@ -96,17 +114,24 @@ Reverse a previously recorded income.
 
 Receive a signed Naboopay webhook. The handler reads the **raw body**, verifies `X-Signature`, then matches.
 
-**Request** (body as sent by Naboopay — `WebhookModel`)
+**Request** (body as sent by Naboopay, webhook payload v2 — ADR 0026; abridged)
 
 ```json
 {
-  "order_id": "order_9fA…",
+  "order_id": "550e8400-e29b-41d4-a716-446655440000",
+  "selected_payment_method": "wave",
   "amount": 253650,
+  "fees": 5073,
+  "fees_customer_side": true,
   "currency": "XOF",
-  "created_at": "2026-10-13T12:04:00",
-  "transaction_status": "paid"
+  "transaction_status": "paid",
+  "products": [{ "name": "Hoodie", "price": 84550, "quantity": 3 }],
+  "created_at": "2026-10-13T12:00:00Z",
+  "paid_at": "2026-10-13T12:04:00Z"
 }
 ```
+
+Webhooks fire when a transaction becomes paid. `transaction_status` is `paid` or `paid_and_blocked` (both treated as paid). Deliveries can repeat, so matching is idempotent. Refunds are performed in Naboopay (`GET /refund/{order_id}`), never by the tracker.
 
 The webhook **creates nothing** (ADR 0008): on a match it confirms, on a non-match it does nothing. Unmatched payments are surfaced later by the scheduled sweep after a grace window — not by this handler.
 

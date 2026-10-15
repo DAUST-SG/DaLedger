@@ -3,6 +3,11 @@
 - **Status:** Accepted
 - **Date:** 2026-10-14
 - **Deciders:** Pikou (Lead, IT Committee)
+- **Revised by:** ADR 0026
+
+> **Revised by ADR 0026.** Naboopay v2 reports each payout's amount and fee
+> (`GET /payouts`), so payouts are captured automatically by a sweep in the shape
+> below; the manual `recordPayout` is the fallback. The two-entry shape stands.
 
 ## Context
 

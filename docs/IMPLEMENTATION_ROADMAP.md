@@ -34,7 +34,7 @@
 | 1 | Define all tables + indexes | `infra` | `convex/schema.ts` | 📋 |
 | 2 | Shared TS types | `chore` | `src/types.ts` | 📋 |
 | 3 | FCFA format/parse helpers | `feat` | `src/lib/fcfa.ts` | 📋 |
-| 4 | Seed 5 accounts + opening balances | `infra` | `convex/migrations/0005_seed_accounts.ts` | 📋 |
+| 4 | Seed 5 accounts + opening balances | `infra` | `convex/seed.ts` | 📋 |
 | 5 | Computed-balance live query | `feat` | `convex/balances.ts` | 📋 |
 
 **Definition of Done:**
@@ -119,25 +119,23 @@
 ---
 
 #### Sprint 6 — Naboopay integration
-**Goal:** Webhook matching + safety net + balance read.
-**Deliverable:** M5 acceptance — valid webhook matched; tampered rejected; unmatched payment in inbox; `part_paid` not posted.
+**Goal:** Webhook matching + safety net + payout capture + balance read, on Naboopay API v2 (ADR 0026).
+**Deliverable:** M5 acceptance — valid webhook matched; tampered rejected; unmatched payment in inbox; completed payouts captured with their fees; refunded orders flagged.
 
 | # | Task | Type | Files Involved | Status |
 |---|------|------|----------------|--------|
-| 1 | Naboopay client (verify/sweep/balance) | `feat` | `convex/naboopay.ts` | 📋 |
+| 1 | Naboopay v2 client (verify, `GET /transactions`, `GET /payouts`, `GET /accounts`; key scope `read`) | `feat` | `convex/naboopay.ts` | 📋 |
 | 2 | `/intake/naboopay` webhook (raw-body HMAC) — confirm-only, creates nothing (ADR 0008) | `feat` | `convex/http.ts` | 📋 |
 | 3 | Match by `naboopayReference`; no action on no-match | `feat` | `convex/http.ts` | 📋 |
-| 4 | Safety-net sweep cron: grace window, dedupe by `order_id`, self-heal; `part_paid` → provisional (ADR 0008,0013) | `infra` | `convex/crons.ts` | ⏸ |
-| 5 | Auto-reconcile Naboopay balance via `GET /account/` | `feat` | `convex/naboopay.ts`, `convex/reconciliations.ts` | ⏸ |
-| 6 | Manual payout/fee entry: `transactions.recordPayout` → net transfer + "Provider fees" expense (ADR 0015) | `feat` | `convex/transactions.ts`, `src/routes/AddTransaction.tsx` | 📋 |
-| 7 | Resolve a `provisional` part_paid: `transactions.enterPartial` (officer-entered amount → confirmed income) (ADR 0013) | `feat` | `convex/transactions.ts`, `src/routes/Review.tsx` | 📋 |
+| 4 | Safety-net sweep cron: `paid`/`paid_and_blocked`, grace window, dedupe by `order_id`, self-heal; flag `refunded` orders with no reversal (ADR 0008, 0026) | `infra` | `convex/crons.ts` | ⏸ |
+| 5 | Auto-reconcile Naboopay balance via `GET /accounts` | `feat` | `convex/naboopay.ts`, `convex/reconciliations.ts` | ⏸ |
+| 6 | Payout sweep: `GET /payouts` → each completed payout once (idempotent on its `order_id`) as a net transfer + "Provider fees" expense; manual `transactions.recordPayout` as the fallback (ADR 0015, 0026) | `feat` | `convex/transactions.ts`, `src/routes/AddTransaction.tsx` | 📋 |
 
 **Definition of Done:**
 - [ ] Valid signed webhook accepted; tampered body rejected; webhook creates no record.
-- [ ] A paid payment unmatched after the grace window appears once in Needs-review; `part_paid` becomes a balance-excluded `provisional` awaiting an officer-entered amount.
-- [ ] A Naboopay payout with a fee is recorded as a net transfer + a "Provider fees" expense (ADR 0015).
-- [ ] An officer can enter the actual amount on a `provisional`, turning it into counted income (ADR 0013).
-- [ ] *(Blocked on a valid Naboopay **server API key** for sweep + balance read.)*
+- [ ] A paid payment unmatched after the grace window appears once in Needs-review; a `refunded` order with no reversal is flagged once.
+- [ ] A completed Naboopay payout is captured once as a net transfer + a "Provider fees" expense with the reported fee; the manual fallback produces the same pair (ADR 0015, 0026).
+- [ ] *(Blocked on a valid Naboopay **server API key** (scope `read`) for the sweeps + balance read.)*
 
 ---
 
@@ -192,8 +190,7 @@
 - [ ] Naboopay webhook matching — Sprint 6
 - [ ] Safety-net sweep — Sprint 6 (⏸ server key)
 - [ ] Auto-reconcile Naboopay balance — Sprint 6 (⏸ server key)
-- [ ] Manual payout/fee entry (`recordPayout`) — Sprint 6
-- [ ] Resolve part_paid provisional (`enterPartial`) — Sprint 6
+- [ ] Payout capture (sweep + manual `recordPayout` fallback) — Sprint 6
 - [ ] End-of-term review report — Sprint 7
 - [ ] Offline reconnect (native) — Sprint 7
 - [ ] Recurring expense templates (v1.1) — Sprint 8

@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-14
 - **Deciders:** Pikou (Lead, IT Committee)
+- **Implemented:** M4 — the cutover date is each account's creation time (when `seed:accounts` runs at cutover), rounded down to a whole millisecond; `reconciliations.correctOpening`
 
 ## Context
 

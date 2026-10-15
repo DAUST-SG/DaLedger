@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
+- **Amended by:** ADR 0026 (`provisional` removed)
 
 ## Context
 
@@ -20,10 +21,10 @@ out of the inbox, with screens disagreeing.
 **Status is the single source of truth for inbox membership**, and the inbox is
 a derived query, not a stored flag:
 
-> in the inbox ⇔ `status ∈ {needs_review, draft, provisional}`.
+> in the inbox ⇔ `status ∈ {needs_review, draft}`.
 
-(`provisional` was added by ADR 0013 for part_paid items; it is inbox-visible but
-balance-excluded.)
+(ADR 0013 briefly added `provisional`; ADR 0026 removed it, since Naboopay v2 has
+no `part_paid`.)
 
 One enforced invariant prevents drift: **an item can never be `confirmed` while
 its category is `Unlabeled`.** Assigning a real category is the single action

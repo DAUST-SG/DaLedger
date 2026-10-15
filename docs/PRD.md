@@ -66,7 +66,7 @@ Within 12 months, the SG runs entirely on Finance Tracker: officers record every
   - [ ] A transaction entered on a phone updates the correct balance on every device immediately.
   - [ ] A transfer does not change the total held by the SG (it is strictly equal-in/equal-out; a payout fee is a separate expense, ADR 0015).
   - [ ] A reversal restores the balance with no special-case logic, and nets to zero inside its own category/event (ADR 0002); a target has at most one active reversal and double-taps apply it once (ADR 0019, 0020).
-  - [ ] `committed`, `draft`, `skipped`, `memo`, and `provisional` entries are excluded from balances; `confirmed`, `paid`, and `needs_review` count (ADR 0007).
+  - [ ] `committed`, `draft`, `skipped`, `memo`, and `cancelled` entries are excluded from balances; `confirmed`, `paid`, and `needs_review` count (ADR 0007, 0028).
 
 ### 5.2 Manual entry
 - **Priority:** P0
@@ -79,26 +79,27 @@ Within 12 months, the SG runs entirely on Finance Tracker: officers record every
 
 ### 5.3 Automatic income intake
 - **Priority:** P0
-- **Description:** HTTPS endpoint `/intake/income`; per-source secret key; idempotent on `(source, externalId, kind)` where `kind ∈ {income, refund}` so a sale and its refund are distinct, each-idempotent records (ADR 0005); income booked on the Naboopay account with the source's default category and status `confirmed`.
+- **Description:** HTTPS endpoint `/intake/income`; per-source secret key; idempotent on `(source, externalId, kind)` where `kind ∈ {income, refund}` so a sale and its refund are distinct, each-idempotent records (ADR 0005); income booked on the Naboopay account with status `confirmed` and a category chosen in a fixed order: the request's income category, else the source's default, else `Unlabeled` + `needs_review` (ADR 0029).
 - **Acceptance Criteria:**
   - [ ] The same order sent twice produces exactly one transaction.
   - [ ] An unpaid order never appears (backends post only on paid/done).
   - [ ] A wrong/unknown key is rejected (401).
   - [ ] A refund call creates a reversal of the original income, and a retried refund still yields exactly one reversal (ADR 0005).
-  - [ ] A refund with no matching income goes to Needs-review rather than creating a dangling reversal.
+  - [ ] A refund with no matching income gets a retryable 404 and writes nothing (ADR 0005, amended); the M5 sweep catches a sale that was never captured.
 
 ### 5.4 Naboopay integration
 - **Priority:** P0 (webhook) / P1 (sweep, balance)
-- **Description:** Verify Naboopay webhooks (HMAC over raw body) and match to income by `naboopayReference` (= Naboopay `order_id`). The webhook itself **creates nothing** — on a match it confirms, on a non-match it does nothing (ADR 0008). A scheduled sweep raises an unmatched Needs-review item only for paid/done payments still unmatched **after a ~30-min grace window**, deduped by `order_id`, and self-healing when the real income later arrives. A `part_paid` payment becomes a `provisional` review item that does **not** count toward balances until an officer enters the actual amount received (ADR 0013). Payouts and fees are entered manually; a payout fee is a net transfer + a "Provider fees" expense (ADR 0015). The Naboopay balance is read via `GET /account/` for reconciliation.
+- **Description:** Verify Naboopay webhooks (HMAC over raw body) and match to income by `naboopayReference` (= Naboopay `order_id`). The webhook itself **creates nothing** — on a match it confirms, on a non-match it does nothing (ADR 0008). Built on **Naboopay API v2** (`/api/v2`; v1 is deprecated — ADR 0026). A scheduled sweep (`GET /transactions`) raises an unmatched Needs-review item only for `paid`/`paid_and_blocked` payments still unmatched **after a ~30-min grace window**, deduped by `order_id`, and self-healing when the real income later arrives; it also flags a `refunded` order whose income has no reversal. A payout sweep (`GET /payouts`) records each completed payout once as a net transfer + a "Provider fees" expense for its exact fee (ADR 0015, 0026); manual `recordPayout` is the fallback. The tracker never moves money: refunds and payouts are done in Naboopay, and its key needs only the `read` scope. The Naboopay balance is read via `GET /accounts` for reconciliation.
 - **Acceptance Criteria:**
   - [ ] A valid signed webhook is accepted; a tampered body is rejected.
   - [ ] A webhook that arrives before the backend's intake creates no phantom and no duplicate (ADR 0008).
   - [ ] A paid payment still unmatched after the grace window appears in Needs-review, once.
-  - [ ] A `part_paid` payment appears as `provisional`, excluded from balances, and only counts after an officer enters the real amount received (ADR 0013).
+  - [ ] A completed Naboopay payout appears once as a net transfer plus a "Provider fees" expense with the fee Naboopay reports (ADR 0015, 0026).
+  - [ ] A `refunded` Naboopay order whose income has no reversal is flagged in Needs-review after the grace window, once (ADR 0026).
 
 ### 5.5 Needs-review inbox, filters, event view, CSV
 - **Priority:** P0 (inbox) / P1 (rest)
-- **Description:** The inbox is a **derived view**, not a stored flag: in the inbox ⇔ `status ∈ {needs_review, draft, provisional}` (ADR 0006, 0013). It gathers unlabelled items (`Unlabeled` + `needs_review`), unmatched Naboopay payments, part_paid provisionals, and recurring drafts. Full transaction list with filters (date, account, category, event, source, type) and CSV export. The **Event view is all-time** (the event's whole-life P&L by `occurredAt`), distinct from and reconciling with the report's period-scoped by-event line; both are labelled so cross-term events don't look like bugs (ADR 0022).
+- **Description:** The inbox is a **derived view**, not a stored flag: in the inbox ⇔ `status ∈ {needs_review, draft}` (ADR 0006, 0026). It gathers unlabelled items (`Unlabeled` + `needs_review`), unmatched Naboopay payments and refunds, and recurring drafts. Full transaction list with filters (date, account, category, event, source, type) and CSV export. The **Event view is all-time** (the event's whole-life P&L by `occurredAt`), distinct from and reconciling with the report's period-scoped by-event line; both are labelled so cross-term events don't look like bugs (ADR 0022).
 - **Acceptance Criteria:**
   - [ ] Every captured item without a label is in the inbox; assigning a real category is the single action that flips it `needs_review → confirmed` (an item is never `confirmed` while `Unlabeled`, ADR 0006).
   - [ ] Event view (all-time) and report by-event (period) are each labelled; an event's all-time net = sum of its per-period nets (ADR 0022).
@@ -167,9 +168,9 @@ Sprint 5 → M4, Sprint 6 → M5, Sprint 7 → M6, Sprint 8 → M7. -->
 
 ## 9. Open Questions
 
-- [ ] Can the SG obtain a working Naboopay **server API key** (the current publishable key is rejected)? Needed for sweep + balance auto-read.
+- [ ] Can the SG obtain a working Naboopay **server API key** with the `read` scope (the current publishable key is rejected)? Needed for the sweeps + balance auto-read.
 - [ ] Who maintains the shop and DaBus backends, and when can they add the intake call + persist Naboopay `order_id`?
-- [ ] Confirm `fees_customer_side = true` as the fee policy.
-- [ ] Agree the starting category list and the default category/event per source.
+- [x] Fee policy: `fees_customer_side = true`, set explicitly by the backends (ADR 0026).
+- [ ] Agree the starting category list and the default category per source (mechanism fixed by ADR 0029; values `shop` → Shop sales, `dabus` → DaBus pending the Treasurer).
 - [ ] Is offline capture required for the first release, or staged?
 - [ ] Final cutover date and source of verified opening balances + university statement.

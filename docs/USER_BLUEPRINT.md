@@ -89,8 +89,7 @@
 | Save with no reason | Officer submits incomplete form | Stays on `/add` | Inline error; save blocked |
 | Duplicate shop order | Backend retries intake | n/a (API) | `(source, externalId, kind)` dedupe; one transaction (ADR 0005) |
 | Naboopay payment, no match | Sweep finds no income after grace window | `/review` | Flagged `needs_review`, once, deduped by `order_id`; self-heals if income arrives late (ADR 0008) |
-| Partial payment (`part_paid`) | Naboopay status partial | `/review` | Surfaced as `provisional`, excluded from balances until an officer enters the actual amount received (ADR 0013) |
-| Refund | Source calls refund endpoint | `/transactions` | Reversal linked to original, keyed `kind=refund`; no-match → `/review` (ADR 0005) |
+| Refund | Refund done in Naboopay, then the source calls the refund endpoint | `/transactions` | Reversal linked to original, keyed `kind=refund`. No matching sale → 404, nothing written, the backend retries (ADR 0005, amended). A Naboopay `refunded` order with no reversal is flagged in `/review` after the grace window (ADR 0026) |
 | Wrong account entry | Officer notices mistake | `/transactions` | Reverse + re-enter (never delete) |
 | Offline during entry | No connection | `/add` | Queued; syncs on reconnect (native) |
 | Stale reconcile (freshness) | > 7 days since check | `/` Home | Date highlighted as a nudge |

@@ -26,7 +26,7 @@ matching income goes to [[Needs-review]]. See ADR 0005.
 
 ### Needs-review
 A derived inbox of unfinished items, defined as
-`status ∈ {needs_review, draft, provisional}` — never a stored flag. Fed by
+`status ∈ {needs_review, draft}` — never a stored flag. Fed by
 auto-captured items lacking a category (sentinel
 category `Unlabeled`), unmatched Naboopay payments, and recurring drafts.
 Invariant: an item is never `confirmed` while its category is `Unlabeled`;
@@ -53,11 +53,11 @@ field edit, status transition) logged with actor, time, a semantic `action`, and
 truth, the audit log holds the who/why. See ADR 0014.
 
 ### Stale reconciliation
-A past [[reconciliation]] whose "matched" result no longer holds because a
-transaction dated on-or-before its check date was written (or edited) afterwards
-— e.g. a back-dated receipt. Derived (not stored); surfaced as "needs
-re-checking" on the home screen. Back-dating is allowed; the period is never
-hard-locked. See ADR 0010.
+A past [[reconciliation]] whose result no longer holds: the balance at its check
+time, recomputed now, differs from what the check ended at, e.g. after a
+back-dated receipt or a withdrawal marked paid with an earlier date. Derived (not
+stored); surfaced as "needs re-checking" on the home screen. Back-dating is
+allowed; the period is never hard-locked. See ADR 0010 (amended in M4).
 
 ### Reversal
 A ledger entry that cancels an earlier one. It is a **near-copy of the original**
@@ -106,9 +106,10 @@ withdrawal|paid]].
 ### Contribution
 The **signed effect** of one entry on one account `X`, from a per-account table (two-leg
 types like [[transfer]] and paid [[school withdrawal]] hit `accountId` negative
-and `toAccountId` positive), then a −1 flip if it is a [[reversal]], then a
-status gate. This single rule is why the balance formula needs no special case
-for reversals. See ADR 0007 for the full table.
+and `toAccountId` positive), then the **chain-alternating reversal flip** (−1 per
+`reversalOf` link, so a reversal is −1 and a reversal-of-reversal +1 — ADR 0027),
+then a status gate. This single rule is why the balance formula needs no special
+case for reversals. See ADR 0007 for the full table.
 
 ### Opening balance
 An account's verified balance at cutover — a measured fact, stored as a field and
@@ -136,10 +137,16 @@ never moves twice. Applies to all in-place edits. See ADR 0019.
 
 ### Live status
 A status that counts toward balances: `confirmed`, `paid`, `needs_review`.
-`committed`, `draft`, `memo`, `skipped`, and `provisional` contribute 0. Note
+`committed`, `draft`, `memo`, `skipped`, and `cancelled` contribute 0. Note
 [[Needs-review]] money **does** count — it is settled, fully-known money awaiting
-a label — but [[provisional]] (part_paid) does not. Full status set:
-`confirmed | needs_review | committed | paid | draft | memo | skipped | provisional`.
+a label. Full status set:
+`confirmed | needs_review | committed | paid | draft | memo | skipped | cancelled`.
+
+### Cancelled (withdrawal state)
+An approved-but-unpaid [[school withdrawal]] that will not happen, ended by a
+guarded `committed → cancelled` transition (reason required, audited). Contributes
+0 and is dropped from the committed amount shown under School. Not a [[reversal]]
+(a committed withdrawal moved no money). See ADR 0028.
 
 ### Event view (all-time) vs report by-event (period)
 Two reconciling views of an event's net: the **Event view** is all-time (the
@@ -152,12 +159,6 @@ only gates new tags, not totals. See ADR 0022.
 A report-only pre-cutover event summary. Excluded from every balance, included in
 event/category reports. The single deliberate case where balance math and report
 math diverge. See ADR 0011.
-
-### Provisional
-A Naboopay `part_paid` payment surfaced for review. Inbox-visible but
-balance-excluded, because Naboopay reports the full nominal amount, not the
-partial actually received. An officer enters the real amount received, which
-turns it into settled income that counts. See ADR 0013.
 
 ### Recurring draft lifecycle
 A template-generated `draft` expense ends one of three ways, none a delete:
@@ -174,9 +175,13 @@ neutral — the SG total is unchanged. Not income or expense.
 A transfer out of Naboopay to Wave/OM/Cash. When Naboopay charges a fee, it is
 recorded as **two entries**: a [[transfer]] of the *net* amount received plus a
 separate "Provider fees" *expense* for the fee. Transfers never carry unequal
-amounts; every fee is an expense. See ADR 0015.
+amounts; every fee is an expense. Payouts are captured automatically from
+Naboopay's payout feed (`GET /payouts`); manual entry is the fallback. See ADR
+0015, 0026.
 
 ### Fee
-Any Naboopay charge. Per-*sale* fees are avoided via `fees_customer_side = true`
-(SG receives the full nominal amount). Per-*payout* fees are real and entered
-manually as a "Provider fees" expense. No automatic fee feed exists.
+Any Naboopay charge. Per-*sale* fees are avoided via `fees_customer_side = true`,
+which the backends must set explicitly (the v2 default is `false`), so the SG
+receives the full nominal amount. Per-*payout* fees are real and booked as a
+"Provider fees" expense. Naboopay v2 reports the exact fee on every transaction
+and payout. See ADR 0015, 0026.

@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
+- **Amended by:** ADR 0026 (`provisional` removed), ADR 0027 (reversal flip alternates along the chain), ADR 0028 (`cancelled` status)
 - **Supersedes:** the simplified single-account formula noted in ADR 0002
 
 ## Context
@@ -28,14 +29,17 @@ The effect of transaction `t` on account `X`:
 
 Then, applied uniformly:
 
-1. **Reversal flip** — multiply the effect by −1 when `reversalOf` is set. This
-   undoes both legs of a two-leg entry in one row.
+1. **Reversal flip** — multiply the effect by the chain sign `flip(t)`: `+1` if
+   `reversalOf` is unset, else `−flip(t.reversalOf)` — i.e. **−1 per link** in the
+   `reversalOf` chain, so a reversal is −1, a reversal-of-reversal +1, and so on
+   (ADR 0027; the naïve "−1 whenever `reversalOf` is set" was wrong for chains).
+   This undoes both legs of a two-leg entry in one row.
 2. **Status gate** — a row contributes 0 unless "live". Live statuses:
    `confirmed`, `paid`, `needs_review`. Excluded (contribute 0): `committed`,
-   `draft`, `memo`, `skipped`, `provisional`.
+   `draft`, `memo`, `skipped`, `cancelled`.
    (`needs_review` counts because it is settled, fully-known money awaiting a
-   label; `provisional` — a part_paid of unknown amount — does not. See
-   ADR 0013.)
+   label. ADR 0013's `provisional` was removed by ADR 0026; `cancelled` added by
+   ADR 0028.)
 
 `balance(X) = openingBalance(X) + Σ effect(t, X)` over all transactions.
 

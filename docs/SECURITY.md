@@ -10,7 +10,7 @@
 ### Assets to Protect
 - The integrity of the **ledger** (transactions and therefore all balances).
 - **Officer accounts** and their sessions.
-- **Intake secret keys** (shop, DaBus) and the **Naboopay webhook secret** and **server API key**.
+- **Intake secret keys** (shop, DaBus) and the **Naboopay webhook secret** and **server API key** (Naboopay API v2, scope `read` only — the tracker never moves money, ADR 0026).
 - The **audit log** (must be tamper-evident).
 - Personal data: officer emails/names; receipt images may incidentally contain PII.
 
@@ -52,7 +52,7 @@
 ## 4. Secrets Management
 
 - **`.env` policy:** `.env.local` is git-ignored; only `.env.example` (no values) is committed.
-- **Production secrets:** stored as Convex environment variables (`npx convex env set INTAKE_KEY_SHOP …`), never shipped to the browser (no `VITE_`-prefixed secrets).
+- **Production secrets:** stored as Convex environment variables (`npx convex env set INTAKE_SOURCES shop,dabus` and one `INTAKE_KEY_<SOURCE>` per source, at least 16 characters), never shipped to the browser (no `VITE_`-prefixed secrets).
 - **Rotation policy:** rotate any intake key or the webhook secret on suspected exposure or officer turnover; rotate at least once per academic year. Because keys are per-source, rotating one does not disrupt the others.
 - **Incident note:** a live key shared during analysis (e.g. in chat/tickets) must be treated as exposed and rotated.
 
@@ -61,7 +61,7 @@
 - **Input validation:** every intake field validated — `amount` a positive integer, required fields present, `source` matches the key; reject with `422 VALIDATION`.
 - **Idempotency:** `(source, externalId, kind)` uniqueness makes retries safe and blocks duplicate injection.
 - **Guarded transitions:** every in-place status change acts only from its expected current status and no-ops otherwise, and a target has at most one active reversal — so double-taps, retries, and concurrent officers never double-move money (ADR 0019, 0020).
-- **Rate limiting:** per-key limits on intake; paginated, scheduled outbound calls respect Naboopay's 100 req/60 s.
+- **Rate limiting:** per-key limits on intake are **deferred to the pre-go-live checklist** (not M2). A leaked intake key can post distinct fake income that idempotency does not stop; the real protections are key secrecy and rotation and reconciliation against the true Naboopay balance (fake income inflates computed vs real), and rate limiting only slows an attacker. paginated, scheduled outbound calls respect Naboopay's 100 req/60 s. The tracker's Naboopay key carries only the `read` scope; it is never given `payout`, `write` or `checkout`, so a leaked key cannot move money.
 - **CORS:** the SPA origin is allow-listed for the Convex client; intake/webhook endpoints are server-to-server and not CORS-exposed to browsers.
 - **Webhook verification:** compute HMAC-SHA256 over the **raw request body** (via `request.text()`), compare with a constant-time check; never verify against a re-serialized object (whitespace/key-order differences cause silent failures).
 

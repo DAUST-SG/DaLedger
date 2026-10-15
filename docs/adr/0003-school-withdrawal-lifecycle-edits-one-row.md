@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
+- **Amended by:** ADR 0028 (a `committed` withdrawal may instead be `cancelled`)
 
 ## Context
 
@@ -41,5 +42,6 @@ log records the before/after.
   `confirmed | needs_review | committed | paid | draft`. Schema docs that omit
   `paid` must add it.
 
-  (The enum was later extended to 8 — `memo`/`skipped`/`provisional` added by
-  ADRs 0011/0012/0013; see the schema status table for the authoritative set.)
+  (The enum was later extended to 7 — `memo`/`skipped` added by ADRs 0011/0012;
+  ADR 0013's `provisional` was removed by ADR 0026. See the schema status table
+  for the authoritative set.)

@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+/* DAUST SG: a deep violet ground for headers, ink-violet text, quiet lilac greys. */
+@theme {
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --color-brand: #3b2470;
+  --color-brand-soft: #ede8f6;
+  --color-ink: #1c1828;
+  --color-muted: #6a6380;
+  --color-line: #e2dded;
+  --color-page: #f6f4fa;
+  --color-gain: #17734a;
+  --color-loss: #a8322a;
+  --color-warn: #8a5300;
+}
+
+html, body, #root { height: 100%; }
+body {
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-tap-highlight-color: transparent;
+}
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+a, button, select, input, label { touch-action: manipulation; }
+:is(a, button:not(:disabled)) { transition: filter 120ms ease-out, background-color 120ms ease-out; }
+:is(a, button:not(:disabled)):hover { filter: brightness(0.94); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
