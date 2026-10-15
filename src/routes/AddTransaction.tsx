@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import AmountInput from "../components/AmountInput";
+import AccountBadge from "../components/AccountBadge";
+import PageHeader from "../components/PageHeader";
 import { formatFCFA, parseFCFA } from "../lib/fcfa";
 import { errorMessage } from "../lib/errors";
 
@@ -19,7 +21,7 @@ const TYPES: { value: TxType; label: string }[] = [
   { value: "adjustment_down", label: "Adjustment ↓" },
 ];
 
-const field = "h-12 rounded-lg border border-line bg-white px-3 text-base w-full";
+const field = "h-12 rounded-xl border border-line bg-white px-3 text-base w-full";
 
 export default function AddTransaction() {
   const catalog = useQuery(api.catalog.forEntry);
@@ -27,6 +29,7 @@ export default function AddTransaction() {
   const recent = useQuery(api.transactions.recentReasons);
   const balances = useQuery(api.balances.list);
   const [warned, setWarned] = useState(false);
+  const [moreTypes, setMoreTypes] = useState(false);
   const navigate = useNavigate();
 
   const [type, setType] = useState<TxType>("expense");
@@ -104,74 +107,115 @@ export default function AddTransaction() {
     }
   }
 
-  return (
-    <div className="min-h-full">
-      <header className="bg-brand text-white px-5 py-4 flex items-center gap-4">
-        <Link to="/" className="underline underline-offset-2 text-white/85">Back</Link>
-        <h1 className="font-semibold">Add transaction</h1>
-      </header>
+  const main: TxType[] = ["expense", "income", "transfer"];
+  const showMoreTypes = moreTypes || !main.includes(type);
+  const categories = catalog?.categories.filter((c) => c.direction === type) ?? [];
+  // Recently used categories first, as one-tap buttons (PRD §5.2); the rest in a list.
+  const recentCats = [...new Set(recent?.filter((r) => r.type === type && r.categoryId).map((r) => r.categoryId as string))]
+    .map((id) => categories.find((c) => c._id === id))
+    .filter((c): c is (typeof categories)[number] => Boolean(c))
+    .slice(0, 6);
+  const otherCats = categories.filter((c) => !recentCats.some((r) => r._id === c._id));
+  const chip = (on: boolean) =>
+    `h-10 px-3.5 rounded-xl text-sm font-medium flex items-center gap-2 border ${on ? "bg-brand text-white border-brand" : "bg-white border-line"}`;
 
-      <form onSubmit={onSubmit} className="px-4 py-5 flex flex-col gap-5 max-w-md mx-auto">
+  return (
+    <div className="min-h-full pb-10">
+      <PageHeader title="Add transaction" />
+
+      <form onSubmit={onSubmit} className="px-4 py-5 flex flex-col gap-6 max-w-md mx-auto">
         <fieldset className="flex flex-col gap-2">
-          <legend className="text-sm font-medium mb-2">Type</legend>
-          <div className="flex flex-wrap gap-2">
-            {TYPES.map((t) => (
+          <legend className="sr-only">Type</legend>
+          <div className="grid grid-cols-3 gap-1 rounded-2xl bg-brand-soft p-1">
+            {main.map((t) => (
               <button
-                key={t.value}
+                key={t}
                 type="button"
-                aria-pressed={type === t.value}
-                onClick={() => pickType(t.value)}
-                className={`h-10 px-3 rounded-full border text-sm ${
-                  type === t.value ? "bg-brand text-white border-brand" : "bg-white border-line"
-                }`}
+                aria-pressed={type === t}
+                onClick={() => pickType(t)}
+                className={`h-11 rounded-xl text-sm font-semibold ${type === t ? "bg-white text-brand shadow-sm" : "text-muted"}`}
               >
-                {t.label}
+                {TYPES.find((x) => x.value === t)!.label}
               </button>
             ))}
           </div>
+          {showMoreTypes ? (
+            <div className="flex flex-wrap gap-2">
+              {TYPES.filter((t) => !main.includes(t.value)).map((t) => (
+                <button key={t.value} type="button" aria-pressed={type === t.value} onClick={() => pickType(t.value)} className={chip(type === t.value)}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <button type="button" onClick={() => setMoreTypes(true)} className="self-start text-sm text-brand font-medium">
+              School allocation, withdrawal or adjustment…
+            </button>
+          )}
         </fieldset>
 
         <label className="flex flex-col gap-1.5" htmlFor="amount">
           <span className="text-sm font-medium">Amount</span>
-          <AmountInput id="amount" value={amount} onChange={setAmount} />
+          <AmountInput id="amount" value={amount} onChange={setAmount} autoFocus />
         </label>
 
         {fromSchool ? (
-          <p className="text-sm text-muted">
+          <p className="rounded-xl bg-brand-soft p-3 text-sm text-muted">
             {type === "allocation"
               ? "Raises what the university owes the SG. No cash account changes."
               : "Saved as approved, not yet paid. Mark it paid on Home when the money lands."}
           </p>
         ) : (
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">{type === "transfer" ? "From" : "Account"}</span>
-            <select id="account" name="account" value={accountId} onChange={(e) => setAccountId(e.target.value)} className={field}>
-              <option value="" disabled>Choose…</option>
-              {fromOptions.map((a) => <option key={a._id} value={a._id}>{a.name}</option>)}
-            </select>
-          </label>
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-sm font-medium mb-1.5">{type === "transfer" ? "From" : type === "income" ? "Into" : "Paid from"}</legend>
+            <div className="flex flex-wrap gap-2">
+              {fromOptions.map((a) => (
+                <button key={a._id} type="button" aria-pressed={accountId === a._id} onClick={() => setAccountId(a._id)} className={chip(accountId === a._id)}>
+                  <AccountBadge accountKey={a.key} size="sm" /> {a.name}
+                </button>
+              ))}
+            </div>
+          </fieldset>
         )}
 
         {needsTo && (
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">{type === "transfer" ? "To" : "Will be paid into (optional)"}</span>
-            <select id="to-account" name="to-account" value={toAccountId} onChange={(e) => setToAccountId(e.target.value)} className={field}>
-              <option value="">{type === "transfer" ? "Choose…" : "Decide later"}</option>
-              {cash.filter((a) => a._id !== accountId).map((a) => <option key={a._id} value={a._id}>{a.name}</option>)}
-            </select>
-          </label>
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-sm font-medium mb-1.5">{type === "transfer" ? "To" : "Will be paid into (optional)"}</legend>
+            <div className="flex flex-wrap gap-2">
+              {cash.filter((a) => a._id !== accountId).map((a) => (
+                <button
+                  key={a._id} type="button" aria-pressed={toAccountId === a._id}
+                  onClick={() => setToAccountId(toAccountId === a._id && type !== "transfer" ? "" : a._id)}
+                  className={chip(toAccountId === a._id)}
+                >
+                  <AccountBadge accountKey={a.key} size="sm" /> {a.name}
+                </button>
+              ))}
+            </div>
+          </fieldset>
         )}
 
         {needsCategory && (
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Category</span>
-            <select id="category" name="category" value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={field}>
-              <option value="" disabled>Choose…</option>
-              {catalog?.categories.filter((c) => c.direction === type).map((c) => (
-                <option key={c._id} value={c._id}>{c.name}</option>
-              ))}
+          <fieldset className="flex flex-col gap-2">
+            <legend className="text-sm font-medium mb-1.5">Category</legend>
+            {recentCats.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {recentCats.map((c) => (
+                  <button key={c._id} type="button" aria-pressed={categoryId === c._id} onClick={() => setCategoryId(c._id)} className={chip(categoryId === c._id)}>
+                    {c.name}
+                  </button>
+                ))}
+              </div>
+            )}
+            <select
+              id="category" name="category" aria-label={recentCats.length ? "Other categories" : "Category"}
+              value={otherCats.some((c) => c._id === categoryId) ? categoryId : ""}
+              onChange={(e) => setCategoryId(e.target.value)} className={field}
+            >
+              <option value="">{recentCats.length ? "Other category…" : "Choose…"}</option>
+              {otherCats.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
             </select>
-          </label>
+          </fieldset>
         )}
 
         <label className="flex flex-col gap-1.5">
@@ -182,32 +226,37 @@ export default function AddTransaction() {
             className={field}
           />
         </label>
-
         <datalist id="reason-suggestions">
           {recent?.filter((r) => r.type === type).map((r) => <option key={r.reason} value={r.reason} />)}
         </datalist>
 
-        {(catalog?.events.length ?? 0) > 0 && (
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Event (optional)</span>
-            <select id="event" name="event" value={eventId} onChange={(e) => setEventId(e.target.value)} className={field}>
-              <option value="">None</option>
-              {catalog?.events.map((ev) => <option key={ev._id} value={ev._id}>{ev.name}</option>)}
-            </select>
-          </label>
-        )}
-
-        {type !== "school_withdrawal" && (
-          <label className="flex flex-col gap-1.5">
-            <span className="text-sm font-medium">Date (optional, defaults to now)</span>
-            <input id="date" name="date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={field} />
-          </label>
-        )}
+        <details className="rounded-xl bg-white border border-line px-4 py-3 group" open={Boolean(eventId || date)}>
+          <summary className="cursor-pointer text-sm font-medium list-none flex justify-between">
+            More details <span className="text-muted font-normal">{eventId || date ? "set" : "event, date"}</span>
+          </summary>
+          <div className="mt-3 flex flex-col gap-4">
+            {(catalog?.events.length ?? 0) > 0 && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm">Event</span>
+                <select id="event" name="event" value={eventId} onChange={(e) => setEventId(e.target.value)} className={field}>
+                  <option value="">None</option>
+                  {catalog?.events.map((ev) => <option key={ev._id} value={ev._id}>{ev.name}</option>)}
+                </select>
+              </label>
+            )}
+            {type !== "school_withdrawal" && (
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm">Date (leave empty for now)</span>
+                <input id="date" name="date" type="datetime-local" value={date} onChange={(e) => setDate(e.target.value)} className={field} />
+              </label>
+            )}
+          </div>
+        </details>
 
         {error && <p role="alert" className="text-sm text-loss">{error}</p>}
 
-        <button type="submit" disabled={pending || !catalog} className="h-14 rounded-xl bg-brand text-white text-lg font-semibold disabled:opacity-60">
-          {pending ? "Saving…" : "Save"}
+        <button type="submit" disabled={pending || !catalog} className="h-14 rounded-2xl bg-brand-deep text-white text-lg font-semibold disabled:opacity-60">
+          {pending ? "Saving…" : `Save ${TYPES.find((t) => t.value === type)!.label.toLowerCase()}`}
         </button>
       </form>
     </div>

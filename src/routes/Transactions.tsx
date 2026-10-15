@@ -5,7 +5,7 @@ import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import PageHeader from "../components/PageHeader";
 import Loading from "../components/Loading";
-import TransactionRow, { TYPE_LABEL } from "../components/TransactionRow";
+import { DayGroupedRows, TYPE_LABEL } from "../components/TransactionRow";
 import { useNames } from "../hooks/useNames";
 import { download, toCSV } from "../lib/csv";
 import { errorMessage } from "../lib/errors";
@@ -48,7 +48,22 @@ export default function Transactions() {
   const convex = useConvex();
   const { results, status, loadMore } = usePaginatedQuery(api.transactions.list, { filter }, { initialNumItems: 25 });
   const [exportError, setExportError] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const chips = [
+    (params.get("from") || params.get("to")) && { key: "dates", label: `${params.get("from") ?? "…"} → ${params.get("to") ?? "…"}` },
+    params.get("account") && { key: "account", label: names.account.get(params.get("account")!) ?? "Account" },
+    params.get("type") && { key: "type", label: TYPE_LABEL[params.get("type") as keyof typeof TYPE_LABEL] ?? "Type" },
+    params.get("category") && { key: "category", label: names.category.get(params.get("category")!) ?? "Category" },
+    params.get("event") && { key: "event", label: names.event.get(params.get("event")!) ?? "Event" },
+    params.get("source") && { key: "source", label: `From ${params.get("source")}` },
+  ].filter(Boolean) as { key: string; label: string }[];
   const [exporting, setExporting] = useState(false);
+
+  function clear(keys: string[]) {
+    const next = new URLSearchParams(params);
+    for (const k of keys) next.delete(k);
+    setParams(next, { replace: true });
+  }
 
   function set(key: string, value: string) {
     const next = new URLSearchParams(params);
@@ -86,7 +101,33 @@ export default function Transactions() {
     <div className="min-h-full pb-10">
       <PageHeader title="Transactions" />
       <main className="px-4 py-5 flex flex-col gap-4 max-w-3xl mx-auto">
-        <section aria-label="Filters" className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            aria-expanded={showFilters}
+            aria-controls="filter-panel"
+            onClick={() => setShowFilters(!showFilters)}
+            className={`h-10 px-4 rounded-xl text-sm font-medium border ${chips.length ? "bg-brand text-white border-brand" : "bg-white border-line"}`}
+          >
+            Filter{chips.length ? ` (${chips.length})` : ""}
+          </button>
+          {chips.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => clear(c.key === "dates" ? ["from", "to"] : [c.key])}
+              aria-label={`Remove filter ${c.label}`}
+              className="h-10 pl-3 pr-2.5 rounded-xl bg-brand-soft text-sm text-brand flex items-center gap-1.5"
+            >
+              {c.label} <span aria-hidden="true" className="text-base leading-none">×</span>
+            </button>
+          ))}
+          {chips.length > 1 && (
+            <button type="button" onClick={() => setParams({}, { replace: true })} className="h-10 px-2 text-sm text-muted underline underline-offset-2">Clear all</button>
+          )}
+        </div>
+        {showFilters && (
+        <section id="filter-panel" aria-label="Filters" className="grid grid-cols-2 sm:grid-cols-4 gap-2 rounded-2xl bg-white p-3 shadow-[0_1px_0_var(--color-line)]">
           <label className="flex flex-col gap-1 text-xs text-muted">From
             <input id="f-from" name="f-from" type="date" value={params.get("from") ?? ""} onChange={(e) => set("from", e.target.value)} className={control} />
           </label>
@@ -123,14 +164,11 @@ export default function Transactions() {
               {[...new Set([...SOURCES, ...(filter.source ? [filter.source] : [])])].map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
-          <div className="flex items-end gap-2">
-            {filtered && (
-              <button type="button" onClick={() => setParams({}, { replace: true })} className="h-11 px-3 rounded-lg border border-line bg-white text-sm">
-                Clear
-              </button>
-            )}
+          <div className="flex items-end">
+            <button type="button" onClick={() => setShowFilters(false)} className="h-11 w-full rounded-lg bg-brand text-white text-sm font-medium">Done</button>
           </div>
         </section>
+        )}
 
         <div className="flex items-center justify-between gap-3">
           <p className="text-sm text-muted">Newest first, by the date the money moved.</p>
@@ -145,9 +183,7 @@ export default function Transactions() {
           <p className="rounded-xl border border-line bg-white p-4 text-center">{filtered ? "No transactions match these filters." : "Nothing recorded yet."}</p>
         )}
         {results.length > 0 && (
-          <ul className="flex flex-col divide-y divide-line rounded-xl border border-line bg-white">
-            {results.map((r) => <TransactionRow key={r._id} row={r} names={names} />)}
-          </ul>
+          <DayGroupedRows rows={results} names={names} />
         )}
         {status === "CanLoadMore" && (
           <button type="button" onClick={() => loadMore(25)} className="h-11 rounded-lg border border-line bg-white">Load more</button>
