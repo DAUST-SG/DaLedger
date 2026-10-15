@@ -141,6 +141,8 @@ The webhook **creates nothing** (ADR 0008): on a match it confirms, on a non-mat
 { "matched": true, "incomeId": "jd7c8s…" }
 ```
 
+**Not configured — 503** if `NABOOPAY_WEBHOOK_SECRET` is not set on the deployment.
+
 **Response (no match) — 200 OK**
 
 ```json

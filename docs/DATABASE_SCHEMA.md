@@ -8,7 +8,7 @@
 
 > SQL is shown below as a portable illustration of indexes, relationships, and access rules. In Convex these map to `defineTable`, `.index()`, and function-level auth checks respectively. The authoritative definition lives in `convex/schema.ts`.
 
-> **Decision records:** this schema reflects ADRs 0001–0030 in `docs/adr/`. Where
+> **Decision records:** this schema reflects ADRs 0001–0032 in `docs/adr/`. Where
 > a field or rule cites an ADR, that record is the rationale of record.
 
 ## Tables

@@ -67,6 +67,30 @@ export const recordIncome = internalMutation({
     const category = await resolveCategory(ctx, args.source, args.category);
     const eventId = await resolveEvent(ctx, args.event);
 
+    // ADR 0031: the sweep already recorded this order as an unreported payment.
+    // With the same amount, that placeholder BECOMES the sale: identity and labels
+    // are filled in, money fields never change, so nothing is counted twice.
+    const placeholder = (
+      await ctx.db.query("transactions").withIndex("by_naboopayReference", (q) => q.eq("naboopayReference", args.naboopayReference)).collect()
+    ).find((t) => t.source === "naboopay" && t.type === "income" && t.kind === "income" && !t.reversalOf);
+    if (placeholder && placeholder.amount === args.amount && !(await activeReversal(ctx, placeholder._id))) {
+      const officerLabelled = placeholder.status === "confirmed";
+      const after = {
+        source: args.source,
+        externalId: args.externalId,
+        reason: args.description.trim(),
+        recordedBy: args.source,
+        // An officer's label on the placeholder wins over the intake's fallback.
+        categoryId: officerLabelled && !category.labelled ? placeholder.categoryId : category.id,
+        eventId: eventId ?? placeholder.eventId,
+        status: officerLabelled || category.labelled ? ("confirmed" as const) : ("needs_review" as const),
+      };
+      const before = Object.fromEntries(Object.keys(after).map((k) => [k, placeholder[k as keyof typeof placeholder]]));
+      await ctx.db.patch(placeholder._id, after);
+      await writeAudit(ctx, { actor: args.source, action: "match", targetId: placeholder._id, ...changedFields(before, after) });
+      return { id: placeholder._id, status: after.status, duplicate: false };
+    }
+
     const doc = {
       type: "income" as const,
       amount: args.amount,

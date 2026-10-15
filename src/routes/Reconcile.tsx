@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import PageHeader from "../components/PageHeader";
@@ -36,7 +36,7 @@ export default function Reconcile() {
             {catalog?.accounts.map((a) => <option key={a._id} value={a._id}>{a.name}</option>)}
           </select>
         </label>
-        {account && <Check key={account._id} accountId={account._id} name={account.name} isSchool={account.isSchool} />}
+        {account && <Check key={account._id} accountId={account._id} name={account.name} isSchool={account.isSchool} isNaboopay={account.key === "naboopay"} />}
         {account && <History accountId={account._id} />}
         {account && <OpeningCorrection key={`o-${account._id}`} accountId={account._id} isSchool={account.isSchool} />}
       </main>
@@ -44,9 +44,11 @@ export default function Reconcile() {
   );
 }
 
-function Check(props: { accountId: Id<"accounts">; name: string; isSchool: boolean }) {
+function Check(props: { accountId: Id<"accounts">; name: string; isSchool: boolean; isNaboopay: boolean }) {
   const computed = useQuery(api.reconciliations.preview, { accountId: props.accountId });
   const create = useMutation(api.reconciliations.create);
+  const readNaboopay = useAction(api.naboopay.readBalance);
+  const [reading, setReading] = useState(false);
   const [real, setReal] = useState("");
   const [adjust, setAdjust] = useState(true);
   const [reason, setReason] = useState("");
@@ -101,6 +103,26 @@ function Check(props: { accountId: Id<"accounts">; name: string; isSchool: boole
           <span className="px-3 text-muted font-medium">FCFA</span>
         </div>
       </label>
+      {props.isNaboopay && (
+        <button
+          type="button"
+          disabled={reading}
+          onClick={async () => {
+            setError(null);
+            setReading(true);
+            try {
+              setReal(groupDigits(String(await readNaboopay({}))));
+            } catch (err) {
+              setError(errorMessage(err, "Naboopay could not be reached. Type the balance from the dashboard instead."));
+            } finally {
+              setReading(false);
+            }
+          }}
+          className="self-start h-10 px-4 rounded-lg border border-brand text-brand text-sm font-medium disabled:opacity-60"
+        >
+          {reading ? "Reading…" : "Read from Naboopay"}
+        </button>
+      )}
 
       {difference !== null && (
         <p className={`text-sm ${difference === 0 ? "text-gain" : "text-warn"}`}>

@@ -100,7 +100,8 @@ DaLedger/
 | `INTAKE_KEY_SHOP` | Secret header key the shop backend sends to `/intake/income` (≥ 16 characters) | Yes |
 | `INTAKE_KEY_DABUS` | Secret header key the DaBus backend sends to `/intake/income` | Yes |
 | `NABOOPAY_WEBHOOK_SECRET` | HMAC-SHA256 secret used to verify Naboopay webhooks | Yes |
-| `NABOOPAY_API_KEY` | Naboopay server API key (Bearer, scope `read`) for sweeps & balance read | Optional <!-- assumed: pending a valid server key; core capture works without it --> |
+| `NABOOPAY_API_KEY` | Naboopay server API key (Bearer, **scope `read` only**) for the sweeps and the "Read from Naboopay" button. Without it the sweep logs "skipped" | Yes for M5 |
+| `NABOOPAY_SG_WALLETS` | The SG's own payout wallets, e.g. `wave:+22177…,om:+22178…`, so payouts to them become transfers, not expenses (ADR 0032). **Must match the phone format Naboopay returns** — matching is digits-only, so keep the country-code prefix consistent (`+221…`, not `00221…`). If unset or mismatched, every payout is booked as an uncategorised expense in Review | Yes for M5 |
 | `NABOOPAY_BASE_URL` | Naboopay API base, default `https://api.naboopay.com/api/v2` | No |
 
 > Secrets are stored as Convex environment variables (`npx convex env set …`) and never committed or exposed to the frontend.
