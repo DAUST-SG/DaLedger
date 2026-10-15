@@ -20,6 +20,7 @@ import type * as intakeKeys from "../intakeKeys.js";
 import type * as ledger from "../ledger.js";
 import type * as naboopay from "../naboopay.js";
 import type * as reconciliations from "../reconciliations.js";
+import type * as recurring from "../recurring.js";
 import type * as reports from "../reports.js";
 import type * as review from "../review.js";
 import type * as seed from "../seed.js";
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   ledger: typeof ledger;
   naboopay: typeof naboopay;
   reconciliations: typeof reconciliations;
+  recurring: typeof recurring;
   reports: typeof reports;
   review: typeof review;
   seed: typeof seed;

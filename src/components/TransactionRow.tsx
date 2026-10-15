@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
-import { formatFCFA } from "../lib/fcfa";
+import { formatFCFA, groupDigits, parseFCFA } from "../lib/fcfa";
 import { errorMessage } from "../lib/errors";
 import { useNames } from "../hooks/useNames";
 
@@ -53,6 +53,8 @@ export default function TransactionRow(props: { row: Row; names: ReturnType<type
     row.source !== "manual" && row.source,
     row.status === "needs_review" && "needs a label",
     row.status === "cancelled" && "cancelled",
+    row.status === "draft" && ((row.occurredAt ?? 0) < new Date().setUTCHours(0, 0, 0, 0) ? "recurring draft · overdue" : "recurring draft"),
+    row.status === "skipped" && "skipped this month",
     row.reversed && "reversed",
   ].filter(Boolean);
 
@@ -72,7 +74,7 @@ export default function TransactionRow(props: { row: Row; names: ReturnType<type
           {formatFCFA(row.amount)}
         </span>
       </button>
-      {open && <RowActions row={row} onDone={() => setOpen(false)} />}
+      {open && (row.status === "draft" ? <DraftActions row={row} onDone={() => setOpen(false)} /> : <RowActions row={row} onDone={() => setOpen(false)} />)}
     </li>
   );
 }
@@ -184,6 +186,86 @@ function RowActions(props: { row: Row; onDone: () => void }) {
   );
 }
 
+/** A recurring draft: confirm it (correcting it if the bill changed) or skip the month (ADR 0012). */
+function DraftActions(props: { row: Row; onDone: () => void }) {
+  const { row } = props;
+  const catalog = useQuery(api.catalog.forEntry);
+  const confirm = useMutation(api.recurring.confirmDraft);
+  const skip = useMutation(api.recurring.skipDraft);
+  const [amount, setAmount] = useState(groupDigits(String(row.amount)));
+  const [date, setDate] = useState(row.occurredAt ? new Date(row.occurredAt).toISOString().slice(0, 10) : "");
+  const [accountId, setAccountId] = useState<string>(row.accountId);
+  const [categoryId, setCategoryId] = useState<string>(row.categoryId ?? "");
+  const [skipReason, setSkipReason] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+
+  async function run(action: () => Promise<unknown>) {
+    setError(null);
+    setPending(true);
+    try {
+      await action();
+      props.onDone();
+    } catch (err) {
+      setError(errorMessage(err));
+      setPending(false);
+    }
+  }
+
+  function onConfirm() {
+    const parsed = parseFCFA(amount);
+    if (parsed === null) return setError("Enter a whole, positive amount in FCFA.");
+    return run(() =>
+      confirm({
+        transactionId: row._id,
+        amount: parsed,
+        occurredAt: date ? Date.parse(`${date}T00:00:00Z`) : undefined,
+        accountId: accountId as Id<"accounts">,
+        categoryId: categoryId ? (categoryId as Id<"categories">) : undefined,
+      }),
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3 rounded-lg bg-brand-soft p-3">
+      <p className="text-xs text-muted">This draft moves no money yet. Correct it if the bill changed, then confirm it.</p>
+      <label className="flex flex-col gap-1 text-sm">Amount paid
+        <input id={`d-amount-${row._id}`} name={`d-amount-${row._id}`} inputMode="numeric" autoComplete="off" value={amount} onChange={(e) => setAmount(groupDigits(e.target.value))} className={`num ${input}`} />
+      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="flex flex-col gap-1 text-sm">Date
+          <input id={`d-date-${row._id}`} name={`d-date-${row._id}`} type="date" value={date} onChange={(e) => setDate(e.target.value)} className={input} />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">Paid from
+          <select id={`d-account-${row._id}`} name={`d-account-${row._id}`} value={accountId} onChange={(e) => setAccountId(e.target.value)} className={input}>
+            {catalog?.accounts.filter((a) => !a.isSchool).map((a) => <option key={a._id} value={a._id}>{a.name}</option>)}
+          </select>
+        </label>
+      </div>
+      <label className="flex flex-col gap-1 text-sm">Category
+        <select id={`d-category-${row._id}`} name={`d-category-${row._id}`} value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className={input}>
+          {catalog?.categories.filter((c) => c.direction === "expense").map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
+        </select>
+      </label>
+      <button type="button" onClick={onConfirm} disabled={pending} className="h-11 rounded-lg bg-brand text-white font-medium disabled:opacity-50">
+        Confirm: it was paid
+      </button>
+      <div className="flex flex-col gap-2 border-t border-line pt-3">
+        <input
+          id={`d-skip-${row._id}`} name={`d-skip-${row._id}`} autoComplete="off"
+          aria-label="Why skip this month?" placeholder="Why skip this month? e.g. Paid yearly in October…"
+          value={skipReason} onChange={(e) => setSkipReason(e.target.value)} className={input}
+        />
+        <button type="button" onClick={() => run(() => skip({ transactionId: row._id, reason: skipReason }))} disabled={pending || !skipReason.trim()} className="h-11 rounded-lg border border-line bg-white font-medium disabled:opacity-50">
+          Skip this month
+        </button>
+      </div>
+      {error && <p role="alert" className="text-sm text-loss">{error}</p>}
+      <AuditHistory id={row._id} />
+    </div>
+  );
+}
+
 const ACTION_LABEL: Record<string, string> = {
   create: "Recorded",
   edit: "Labels edited",
@@ -193,13 +275,16 @@ const ACTION_LABEL: Record<string, string> = {
   cancel_withdrawal: "Withdrawal cancelled",
   adjust: "Reconciliation adjustment",
   correct_opening: "Opening balance correction",
+  confirm_draft: "Recurring draft confirmed",
+  skip_draft: "Month skipped",
+  match: "Matched to the shop/DaBus sale",
 };
 
 // Actions whose entry created the row: show the label only, not "none → …" lines.
 const CREATING = new Set(["create", "reverse", "adjust", "correct_opening"]);
 
 // Fields worth showing in a change line; ids are turned into names.
-const SHOWN = ["status", "categoryId", "eventId", "reason", "toAccountId", "occurredAt"] as const;
+const SHOWN = ["status", "amount", "categoryId", "eventId", "reason", "accountId", "toAccountId", "occurredAt", "skipReason"] as const;
 
 /** Who did what and when to this transaction (ADR 0014). */
 function AuditHistory(props: { id: Id<"transactions"> }) {
@@ -209,7 +294,8 @@ function AuditHistory(props: { id: Id<"transactions"> }) {
     if (value === undefined || value === null) return "none";
     if (key === "categoryId") return names.category.get(String(value)) ?? "?";
     if (key === "eventId") return names.event.get(String(value)) ?? "?";
-    if (key === "toAccountId") return names.account.get(String(value)) ?? "?";
+    if (key === "toAccountId" || key === "accountId") return names.account.get(String(value)) ?? "?";
+    if (key === "amount") return formatFCFA(Number(value));
     if (key === "occurredAt") return formatDate(Number(value));
     return String(value);
   };

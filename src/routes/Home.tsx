@@ -16,6 +16,7 @@ export default function Home() {
   const me = useQuery(api.catalog.me);
   const inbox = useQuery(api.review.count);
   const checks = useQuery(api.reconciliations.status);
+  const overdue = useQuery(api.recurring.overdue);
   const checkOf = (id: string) => checks?.find((c) => c.accountId === id);
   const stale = checks?.filter((c) => c.stale).length ?? 0;
   const { signOut } = useAuthActions();
@@ -44,6 +45,7 @@ export default function Home() {
         <Link to="/transactions" className="h-10 px-4 rounded-full border border-line bg-white flex items-center shrink-0">Transactions</Link>
         <Link to="/events" className="h-10 px-4 rounded-full border border-line bg-white flex items-center shrink-0">Events</Link>
         <Link to="/report" className="h-10 px-4 rounded-full border border-line bg-white flex items-center shrink-0">Term review</Link>
+        <Link to="/recurring" className="h-10 px-4 rounded-full border border-line bg-white flex items-center shrink-0">Recurring</Link>
         <Link to="/reconcile" className="h-10 px-4 rounded-full border border-line bg-white flex items-center gap-2 shrink-0">
           Reconcile
           {stale > 0 && <span className="num min-w-6 h-6 px-1.5 rounded-full bg-loss text-white text-xs flex items-center justify-center">{stale}</span>}
@@ -56,6 +58,12 @@ export default function Home() {
             <AccountCard key={a.accountId} accountId={a.accountId} name={a.name} balance={a.balance} check={checkOf(a.accountId)} />
           ))}
         </section>
+
+        {overdue !== undefined && overdue > 0 && (
+          <Link to="/review" role="status" className="rounded-xl border border-warn/30 bg-white p-3 text-sm text-warn">
+            {overdue === 1 ? "1 recurring bill is" : `${overdue} recurring bills are`} past due: confirm or skip in Needs review.
+          </Link>
+        )}
 
         {stale > 0 && (
           <p role="status" className="rounded-xl border border-loss/30 bg-white p-3 text-sm text-loss">
