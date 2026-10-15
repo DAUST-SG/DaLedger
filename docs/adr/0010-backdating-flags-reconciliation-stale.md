@@ -3,6 +3,17 @@
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
+- **Amended:** M4 (2026-10-15): staleness is detected by **value**, not timestamps
+
+> **Amended in M4.** The timestamp test below (an entry dated ≤ the check but
+> written after it) misses one real case: marking a withdrawal paid with an earlier
+> date changes an *old* row, so the balance at the check date moves with no new
+> row. Staleness is therefore derived by value: a check is stale when the balance
+> at its `checkedAt`, recomputed now, differs from what the check ended at (the
+> real balance if it was adjusted, the computed one if the gap was left open).
+> This catches every case (back-dated entries, back-dated reversals, paid
+> withdrawals, opening corrections) and ignores changes that net to zero. Still
+> derived, never stored.
 
 ## Context
 

@@ -7,6 +7,7 @@ import Review from "./routes/Review";
 import Transactions from "./routes/Transactions";
 import Events from "./routes/Events";
 import EventView from "./routes/EventView";
+import Reconcile from "./routes/Reconcile";
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
           <Route path="/transactions" element={<Transactions />} />
           <Route path="/events" element={<Events />} />
           <Route path="/events/:id" element={<EventView />} />
+          <Route path="/reconcile" element={<Reconcile />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Authenticated>

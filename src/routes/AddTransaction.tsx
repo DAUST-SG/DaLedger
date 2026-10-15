@@ -4,7 +4,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import AmountInput from "../components/AmountInput";
-import { parseFCFA } from "../lib/fcfa";
+import { formatFCFA, parseFCFA } from "../lib/fcfa";
 import { errorMessage } from "../lib/errors";
 
 type TxType = Doc<"transactions">["type"];
@@ -25,6 +25,8 @@ export default function AddTransaction() {
   const catalog = useQuery(api.catalog.forEntry);
   const create = useMutation(api.transactions.create);
   const recent = useQuery(api.transactions.recentReasons);
+  const balances = useQuery(api.balances.list);
+  const [warned, setWarned] = useState(false);
   const navigate = useNavigate();
 
   const [type, setType] = useState<TxType>("expense");
@@ -72,6 +74,16 @@ export default function AddTransaction() {
     if (!effectiveFrom) return setError("Choose an account.");
     if (needsCategory && !categoryId) return setError("Choose a category.");
     if (type === "transfer" && !toAccountId) return setError("Choose where the money goes.");
+
+    // ADR 0017: warn, never block, when an entry would take School below 0.
+    const schoolBalance = balances?.school?.balance;
+    const lowersSchool = type === "adjustment_down" && effectiveFrom === school?._id;
+    if (lowersSchool && schoolBalance !== undefined && parsed > schoolBalance && !warned) {
+      setWarned(true);
+      return setError(
+        `This exceeds the remaining School receivable (${formatFCFA(schoolBalance)}). A university allocation may be missing. Tap Save again to continue.`,
+      );
+    }
 
     setPending(true);
     try {

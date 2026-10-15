@@ -17,6 +17,7 @@ import type * as http from "../http.js";
 import type * as intake from "../intake.js";
 import type * as intakeKeys from "../intakeKeys.js";
 import type * as ledger from "../ledger.js";
+import type * as reconciliations from "../reconciliations.js";
 import type * as reports from "../reports.js";
 import type * as review from "../review.js";
 import type * as seed from "../seed.js";
@@ -38,6 +39,7 @@ declare const fullApi: ApiFromModules<{
   intake: typeof intake;
   intakeKeys: typeof intakeKeys;
   ledger: typeof ledger;
+  reconciliations: typeof reconciliations;
   reports: typeof reports;
   review: typeof review;
   seed: typeof seed;

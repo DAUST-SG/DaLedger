@@ -15,11 +15,11 @@ DaLedger/
 │   ├── transactions.ts           # create / reverse / markWithdrawalPaid / cancelWithdrawal / recordPayout / list
 │   ├── review.ts                 # needs-review inbox list + count (labelling: transactions.editLabels)
 │   ├── events.ts                 # add / close / reopen events
-│   ├── reconciliations.ts        # reconcile mutation + freshness query
+│   ├── reconciliations.ts        # create / correctOpening / status (value-based staleness) / history / preview
 │   ├── reports.ts                # term report aggregation query
 │   ├── recurring.ts              # template CRUD + draft generation (v1.1)
 │   ├── naboopay.ts               # Naboopay client: verify, sweep, readBalance
-│   ├── audit.ts                  # writeAudit() helper
+│   ├── audit.ts                  # writeAudit() helper + forTransaction history query
 │   ├── http.ts                   # httpRouter: /intake/income(/refund), /intake/naboopay
 │   ├── crons.ts                  # scheduled: safetyNetSweep, monthlyDrafts
 │   ├── seed.ts                   # accounts, categories, officers (see DATABASE_SCHEMA.md)
@@ -260,7 +260,7 @@ App (ConvexProvider, Router)
 
 ## 7. Build Order
 
-1. `convex/schema.ts` + types in `src/types.ts` (unblocks everything).
+1. `convex/schema.ts` (types come from `convex/_generated`; unblocks everything).
 2. Convex Auth + `requireOfficer` + Login page.
 3. `transactions.create` + `balances.list` + Home + AddTransaction (M1 acceptance).
 4. `transactions.reverse` + transfer/withdrawal handling.
