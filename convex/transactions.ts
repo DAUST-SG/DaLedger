@@ -86,10 +86,11 @@ export const reverse = mutation({
     const officer = await currentOfficer(ctx);
     const target = await getOrThrow(ctx, args.transactionId, "transaction");
     if (args.reason.trim() === "") throw new ConvexError("A reason is required.");
-    // ponytail: no ADR covers cancelling an unpaid withdrawal; refuse rather than
-    // leave a reversal that stays at 0 while the original later becomes paid.
+    // A committed withdrawal moved no money, so it is abandoned via
+    // transactions.cancelWithdrawal (ADR 0028), not reversed — a reversal copy
+    // would sit at 0 while the original could still be marked paid.
     if (target.status === "committed") {
-      throw new ConvexError("This withdrawal is not paid yet, so there is nothing to reverse.");
+      throw new ConvexError("This withdrawal is not paid yet — cancel it instead of reversing (ADR 0028).");
     }
 
     const existing = await activeReversal(ctx, target._id);
