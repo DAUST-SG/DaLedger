@@ -68,7 +68,10 @@ The header name `X-Signature` is confirmed by Naboopay's v2 docs. Webhooks are r
 | Mark withdrawal paid | `transactions.markWithdrawalPaid` (mutation) | Guarded `committed` → `paid`, no-op otherwise (ADR 0003, 0019) | Session |
 | Record payout | `transactions.recordPayout` (mutation) | Net transfer + "Provider fees" expense from gross-out/net-in (ADR 0015) | Session |
 | Review inbox | `review.list`, `review.count` (queries) | Items with status `needs_review` or `draft`: unlabelled, unmatched, drafts. Labelled with `transactions.editLabels` (ADR 0006) | Session |
-| Reconcile | `reconciliations.create` (mutation) | Record a check + optional adjustment | Session |
+| Reconcile | `reconciliations.create` (mutation) | Record a check; with `adjust`, write an `adjustment_up`/`_down` for `real − computed`, dated at the check (ADR 0001) | Session |
+| Reconciliation status | `reconciliations.status`, `.history`, `.preview` (queries) | Last check per account, value-based staleness (ADR 0010, amended), past checks, computed balance now | Session |
+| Correct opening balance | `reconciliations.correctOpening` (mutation) | Cutover-dated adjustment for the difference; `openingBalance` never changes (ADR 0018) | Session |
+| Transaction history | `audit.forTransaction` (query) | Who, when, action and changed fields for one transaction (ADR 0014) | Session |
 | Review report | `reports.term` (query) | **Period-scoped** (by `occurredAt`) totals by category/event, start/end `balanceAsOf`, full movement reconciliation, School movement, reconciliation history (ADR 0016, 0021) | Session |
 
 ## Error Responses

@@ -17,3 +17,11 @@ export function groupDigits(text: string): string {
   const digits = text.replace(/\D/g, "").replace(/^0+(?=\d)/, "");
   return digits.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
+
+/** A real balance: whole FCFA, 0 allowed, negative only when allowed (School). */
+export function parseBalance(text: string, allowNegative: boolean): number | null {
+  const cleaned = text.replace(/[\s  ]/g, "").replace(/^[−–]/, "-");
+  if (!(allowNegative ? /^-?\d+$/ : /^\d+$/).test(cleaned)) return null;
+  const n = Number(cleaned);
+  return Number.isSafeInteger(n) ? n : null;
+}

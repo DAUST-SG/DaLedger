@@ -4,7 +4,7 @@ import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { formatFCFA } from "../lib/fcfa";
 import { errorMessage } from "../lib/errors";
-import type { useNames } from "../hooks/useNames";
+import { useNames } from "../hooks/useNames";
 
 export const TYPE_LABEL: Record<Doc<"transactions">["type"], string> = {
   income: "Income",
@@ -179,6 +179,60 @@ function RowActions(props: { row: Row; onDone: () => void }) {
         </div>
       )}
       {error && <p role="alert" className="text-sm text-loss">{error}</p>}
+      <AuditHistory id={row._id} />
     </div>
+  );
+}
+
+const ACTION_LABEL: Record<string, string> = {
+  create: "Recorded",
+  edit: "Labels edited",
+  assign_category: "Category assigned, confirmed",
+  reverse: "Recorded as a reversal",
+  mark_paid: "Marked paid",
+  cancel_withdrawal: "Withdrawal cancelled",
+  adjust: "Reconciliation adjustment",
+  correct_opening: "Opening balance correction",
+};
+
+// Actions whose entry created the row: show the label only, not "none → …" lines.
+const CREATING = new Set(["create", "reverse", "adjust", "correct_opening"]);
+
+// Fields worth showing in a change line; ids are turned into names.
+const SHOWN = ["status", "categoryId", "eventId", "reason", "toAccountId", "occurredAt"] as const;
+
+/** Who did what and when to this transaction (ADR 0014). */
+function AuditHistory(props: { id: Id<"transactions"> }) {
+  const entries = useQuery(api.audit.forTransaction, { transactionId: props.id });
+  const names = useNames();
+  const show = (key: string, value: unknown) => {
+    if (value === undefined || value === null) return "none";
+    if (key === "categoryId") return names.category.get(String(value)) ?? "?";
+    if (key === "eventId") return names.event.get(String(value)) ?? "?";
+    if (key === "toAccountId") return names.account.get(String(value)) ?? "?";
+    if (key === "occurredAt") return formatDate(Number(value));
+    return String(value);
+  };
+  if (!entries || entries.length === 0) return null;
+  return (
+    <section className="border-t border-line pt-3 flex flex-col gap-1.5">
+      <h3 className="text-xs font-semibold text-muted uppercase tracking-wide">History</h3>
+      <ul className="flex flex-col gap-1.5 text-xs">
+        {entries.map((e) => {
+          const changes =
+            CREATING.has(e.action)
+              ? []
+              : SHOWN.filter((k) => (e.before && k in e.before) || (e.after && k in e.after)).map(
+                  (k) => `${k.replace(/Id$/, "")}: ${show(k, e.before?.[k])} → ${show(k, e.after?.[k])}`,
+                );
+          return (
+            <li key={e._id}>
+              <span className="text-muted">{new Date(e.at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" })} · {e.actor}</span>
+              <span className="block">{ACTION_LABEL[e.action] ?? e.action}{changes.length ? `: ${changes.join("; ")}` : ""}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

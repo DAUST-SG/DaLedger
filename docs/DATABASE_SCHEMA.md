@@ -112,10 +112,14 @@ the home screen; never hard-blocked.
 | `checkedBy` | ref → users | not null | Officer |
 | `checkedAt` | timestamp | not null | When checked |
 
-> **Staleness is derived, not stored** (ADR 0010): a reconciliation is "stale /
-> needs re-checking" when a transaction dated (`occurredAt`) on-or-before its
-> `checkedAt` was *written* (`createdAt`) or edited after it — e.g. a back-dated
-> receipt. Back-dating is allowed; periods are never hard-locked.
+> **Staleness is derived, not stored** (ADR 0010, amended in M4): a
+> reconciliation is "stale / needs re-checking" when `balanceAsOf(account,
+> checkedAt)`, recomputed now, differs from what the check ended at (`realBalance`
+> if it was adjusted, else `computedBalance`). Back-dated entries, back-dated
+> reversals and withdrawals marked paid with an earlier date all trip it.
+> Back-dating is allowed; periods are never hard-locked.
+>
+> **Real balances:** whole FCFA; 0 is allowed; negative only for School (ADR 0017).
 
 ### users
 

@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { formatFCFA, groupDigits, parseFCFA } from "./fcfa";
+import { formatFCFA, groupDigits, parseBalance, parseFCFA } from "./fcfa";
 
 test("formatFCFA uses spaces as thousands separators", () => {
   expect(formatFCFA(253650)).toBe("253 650 FCFA");
@@ -17,4 +17,13 @@ test("parseFCFA accepts whole positive amounts only", () => {
 test("groupDigits formats as the officer types", () => {
   expect(groupDigits("253650")).toBe("253 650");
   expect(groupDigits("0012a")).toBe("12");
+});
+
+test("parseBalance allows 0, and negative only when asked", () => {
+  expect(parseBalance("0", false)).toBe(0);
+  expect(parseBalance("84 000", false)).toBe(84000);
+  expect(parseBalance("-20 000", false)).toBeNull();
+  expect(parseBalance("-20 000", true)).toBe(-20000);
+  expect(parseBalance("−5", true)).toBe(-5);
+  for (const bad of ["", "1.5", "abc", "--1"]) expect(parseBalance(bad, true)).toBeNull();
 });

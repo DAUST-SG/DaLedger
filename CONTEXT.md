@@ -53,11 +53,11 @@ field edit, status transition) logged with actor, time, a semantic `action`, and
 truth, the audit log holds the who/why. See ADR 0014.
 
 ### Stale reconciliation
-A past [[reconciliation]] whose "matched" result no longer holds because a
-transaction dated on-or-before its check date was written (or edited) afterwards
-— e.g. a back-dated receipt. Derived (not stored); surfaced as "needs
-re-checking" on the home screen. Back-dating is allowed; the period is never
-hard-locked. See ADR 0010.
+A past [[reconciliation]] whose result no longer holds: the balance at its check
+time, recomputed now, differs from what the check ended at, e.g. after a
+back-dated receipt or a withdrawal marked paid with an earlier date. Derived (not
+stored); surfaced as "needs re-checking" on the home screen. Back-dating is
+allowed; the period is never hard-locked. See ADR 0010 (amended in M4).
 
 ### Reversal
 A ledger entry that cancels an earlier one. It is a **near-copy of the original**
