@@ -1,33 +1,26 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, usePaginatedQuery, useQuery } from "convex/react";
 import { useAuthActions } from "@convex-dev/auth/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import AccountCard from "../components/AccountCard";
+import TransactionRow from "../components/TransactionRow";
+import { useNames } from "../hooks/useNames";
 import { formatFCFA } from "../lib/fcfa";
 import { errorMessage } from "../lib/errors";
-
-const TYPE_LABEL: Record<string, string> = {
-  income: "Income",
-  expense: "Expense",
-  transfer: "Transfer",
-  allocation: "Allocation",
-  school_withdrawal: "School withdrawal",
-  adjustment_up: "Adjustment ↑",
-  adjustment_down: "Adjustment ↓",
-};
 
 export default function Home() {
   const balances = useQuery(api.balances.list);
   const me = useQuery(api.catalog.me);
+  const inbox = useQuery(api.review.count);
   const { signOut } = useAuthActions();
 
   return (
     <div className="min-h-full pb-28">
       <header className="bg-brand text-white px-5 pt-6 pb-7">
         <div className="flex items-center justify-between gap-3">
-          <p className="font-semibold">DaLedger</p>
+          <h1 className="font-semibold">DaLedger</h1>
           <div className="flex items-center gap-3 text-sm text-white/80 min-w-0">
             <span className="truncate">{me?.name ?? me?.email}</span>
             <button onClick={() => void signOut()} className="underline underline-offset-2">Sign out</button>
@@ -37,7 +30,18 @@ export default function Home() {
         <p className="num mt-1 text-3xl font-medium">{balances ? formatFCFA(balances.totalHeld) : "…"}</p>
       </header>
 
-      <main className="px-4 -mt-3 flex flex-col gap-6 max-w-2xl mx-auto">
+      <nav aria-label="Sections" className="px-4 pt-4 flex gap-2 overflow-x-auto max-w-2xl mx-auto">
+        <Link to="/review" className="h-10 px-4 rounded-full border border-line bg-white flex items-center gap-2 shrink-0">
+          Needs review
+          {inbox !== undefined && inbox > 0 && (
+            <span className="num min-w-6 h-6 px-1.5 rounded-full bg-warn text-white text-xs flex items-center justify-center">{inbox}</span>
+          )}
+        </Link>
+        <Link to="/transactions" className="h-10 px-4 rounded-full border border-line bg-white flex items-center shrink-0">Transactions</Link>
+        <Link to="/events" className="h-10 px-4 rounded-full border border-line bg-white flex items-center shrink-0">Events</Link>
+      </nav>
+
+      <main className="px-4 pt-4 flex flex-col gap-6 max-w-2xl mx-auto">
         <section aria-label="Accounts" className="grid grid-cols-2 gap-3">
           {balances?.accounts.map((a) => <AccountCard key={a.accountId} name={a.name} balance={a.balance} />)}
         </section>
@@ -75,7 +79,7 @@ function SchoolCard(props: { balance: number; committed: number }) {
             Approved, not yet paid: <span className="num">{formatFCFA(props.committed)}</span>
           </p>
           {withdrawals?.map((w) => (
-            <MarkPaid key={w._id} id={w._id} amount={w.amount} reason={w.reason} defaultTo={w.toAccountId} accounts={cashAccounts} />
+            <Withdrawal key={w._id} id={w._id} amount={w.amount} reason={w.reason} defaultTo={w.toAccountId} accounts={cashAccounts} />
           ))}
         </div>
       )}
@@ -83,7 +87,8 @@ function SchoolCard(props: { balance: number; committed: number }) {
   );
 }
 
-function MarkPaid(props: {
+/** An approved withdrawal: mark it paid (ADR 0003) or cancel it (ADR 0028). */
+function Withdrawal(props: {
   id: Id<"transactions">;
   amount: number;
   reason: string;
@@ -91,15 +96,18 @@ function MarkPaid(props: {
   accounts: { _id: Id<"accounts">; name: string }[];
 }) {
   const markPaid = useMutation(api.transactions.markWithdrawalPaid);
+  const cancel = useMutation(api.transactions.cancelWithdrawal);
   const [to, setTo] = useState<string>(props.defaultTo ?? "");
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelReason, setCancelReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  async function onClick() {
+  async function run(action: () => Promise<unknown>) {
     setPending(true);
     setError(null);
     try {
-      await markPaid({ transactionId: props.id, toAccountId: to as Id<"accounts"> });
+      await action();
     } catch (err) {
       setError(errorMessage(err));
       setPending(false);
@@ -111,117 +119,77 @@ function MarkPaid(props: {
       <p className="text-sm">
         <span className="num">{formatFCFA(props.amount)}</span> · {props.reason}
       </p>
-      <div className="flex gap-2">
-        <select
-          id={`paid-to-${props.id}`}
-          aria-label="Paid into"
-          value={to}
-          onChange={(e) => setTo(e.target.value)}
-          className="h-11 flex-1 min-w-0 rounded-lg border border-line bg-white px-2"
-        >
-          <option value="" disabled>Paid into…</option>
-          {props.accounts.map((a) => <option key={a._id} value={a._id}>{a.name}</option>)}
-        </select>
-        <button
-          onClick={onClick}
-          disabled={!to || pending}
-          className="h-11 px-4 rounded-lg bg-brand text-white font-medium disabled:opacity-50"
-        >
-          Mark paid
-        </button>
-      </div>
+      {!cancelling ? (
+        <>
+          <div className="flex gap-2">
+            <select
+              id={`paid-to-${props.id}`} name={`paid-to-${props.id}`}
+              aria-label="Paid into"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              className="h-11 flex-1 min-w-0 rounded-lg border border-line bg-white px-2"
+            >
+              <option value="" disabled>Paid into…</option>
+              {props.accounts.map((a) => <option key={a._id} value={a._id}>{a.name}</option>)}
+            </select>
+            <button
+              onClick={() => run(() => markPaid({ transactionId: props.id, toAccountId: to as Id<"accounts"> }))}
+              disabled={!to || pending}
+              className="h-11 px-4 rounded-lg bg-brand text-white font-medium disabled:opacity-50"
+            >
+              Mark paid
+            </button>
+          </div>
+          <button onClick={() => setCancelling(true)} className="self-start text-sm text-brand underline underline-offset-2">
+            It won't be paid: cancel it
+          </button>
+        </>
+      ) : (
+        <div className="flex flex-col gap-2">
+          <input
+            id={`cancel-reason-${props.id}`} name={`cancel-reason-${props.id}`}
+            aria-label="Why is it cancelled?"
+            placeholder="Why is it cancelled?"
+            autoComplete="off"
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            className="h-11 rounded-lg border border-line bg-white px-3"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => run(() => cancel({ transactionId: props.id, reason: cancelReason }))}
+              disabled={!cancelReason.trim() || pending}
+              className="h-10 px-4 rounded-lg bg-loss text-white font-medium disabled:opacity-50"
+            >
+              Cancel withdrawal
+            </button>
+            <button onClick={() => setCancelling(false)} className="h-10 px-4 rounded-lg border border-line bg-white">Keep it</button>
+          </div>
+        </div>
+      )}
       {error && <p role="alert" className="text-sm text-loss">{error}</p>}
     </div>
   );
 }
 
 function Recent() {
-  const rows = useQuery(api.transactions.recent);
-  const catalog = useQuery(api.catalog.forEntry);
-  const names = new Map(catalog?.accounts.map((a) => [a._id as string, a.name]));
+  const names = useNames();
+  const { results, status } = usePaginatedQuery(api.transactions.list, { filter: {} }, { initialNumItems: 8 });
 
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">Latest transactions</h2>
-      {rows?.length === 0 && (
+      <div className="flex items-baseline justify-between">
+        <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">Latest transactions</h2>
+        <Link to="/transactions" className="text-sm text-brand underline underline-offset-2">See all</Link>
+      </div>
+      {status !== "LoadingFirstPage" && results.length === 0 && (
         <p className="text-muted text-sm">Nothing recorded yet. Use “Add transaction” below.</p>
       )}
-      <ul className="flex flex-col divide-y divide-line rounded-xl border border-line bg-white">
-        {rows?.map((r) => (
-          <Row
-            key={r._id}
-            row={r}
-            account={[names.get(r.accountId), r.toAccountId && names.get(r.toAccountId)].filter(Boolean).join(" → ")}
-          />
-        ))}
-      </ul>
-    </section>
-  );
-}
-
-function Row(props: {
-  account: string;
-  row: {
-    _id: Id<"transactions">; type: string; amount: number; reason: string; status: string;
-    occurredAt?: number; isReversal: boolean; reversed: boolean;
-  };
-}) {
-  const { row } = props;
-  const reverse = useMutation(api.transactions.reverse);
-  const [open, setOpen] = useState(false);
-  const [reason, setReason] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const canReverse = !row.reversed && row.status !== "committed";
-
-  async function onReverse() {
-    setError(null);
-    try {
-      await reverse({ transactionId: row._id, reason });
-      setOpen(false);
-    } catch (err) {
-      setError(errorMessage(err));
-    }
-  }
-
-  return (
-    <li className="px-4 py-3 flex flex-col gap-2">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate">{row.reason}</p>
-          <p className="text-xs text-muted">
-            {row.isReversal ? "Reversal of " : ""}{TYPE_LABEL[row.type]} · {props.account}
-            {row.status === "committed" && " · not paid yet"}
-            {row.reversed && " · reversed"}
-          </p>
-        </div>
-        <div className="text-right shrink-0">
-          <p className={`num ${row.reversed ? "line-through text-muted" : ""}`}>{formatFCFA(row.amount)}</p>
-          {canReverse && !open && (
-            <button onClick={() => setOpen(true)} className="text-xs text-brand underline underline-offset-2">
-              Reverse
-            </button>
-          )}
-        </div>
-      </div>
-      {open && (
-        <div className="flex flex-col gap-2">
-          <input
-            id={`reverse-reason-${row._id}`}
-            aria-label="Why is this being reversed?"
-            placeholder="Why is this being reversed?"
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-            className="h-11 rounded-lg border border-line px-3"
-          />
-          <div className="flex gap-2">
-            <button onClick={onReverse} disabled={!reason.trim()} className="h-10 px-4 rounded-lg bg-loss text-white font-medium disabled:opacity-50">
-              Reverse it
-            </button>
-            <button onClick={() => setOpen(false)} className="h-10 px-4 rounded-lg border border-line">Cancel</button>
-          </div>
-          {error && <p role="alert" className="text-sm text-loss">{error}</p>}
-        </div>
+      {results.length > 0 && (
+        <ul className="flex flex-col divide-y divide-line rounded-xl border border-line bg-white">
+          {results.map((r) => <TransactionRow key={r._id} row={r} names={names} />)}
+        </ul>
       )}
-    </li>
+    </section>
   );
 }

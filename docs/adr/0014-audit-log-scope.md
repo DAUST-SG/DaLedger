@@ -3,19 +3,20 @@
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
-- **Amended by:** ADR 0026 (`enter_partial` / part_paid removed)
+- **Amended by:** ADR 0026 (`enter_partial` / part_paid removed); **refined by ADR 0030** (only labels, category/event/reason, are editable in place; money fields are reverse-and-re-enter)
 
 ## Context
 
 "Nothing is deleted; every edit is logged with who/when/what" is a cornerstone
 rule. The model now has many in-place edits — mark withdrawal paid, confirm/skip
-a draft, assign a category (which flips status), enter a part_paid amount. "Edit"
-needed a precise definition and a storage granularity.
+a draft, assign a category (which flips status). "Edit" needed a precise
+definition and a storage granularity.
 
 ## Decision
 
 1. **Every state-changing write to a transaction is logged:** creates, field
-   edits (amount, date, category, reason, account), and status transitions
+   edits (**ADR 0030 limits in-place edits to labels — `categoryId`, `eventId`,
+   `reason`; money fields are reverse-and-re-enter**), and status transitions
    (`committed→paid`, `needs_review→confirmed`, `draft→confirmed/skipped`).
    Pure reads are not logged; a reconciliation *check*
    is already its own stored record.

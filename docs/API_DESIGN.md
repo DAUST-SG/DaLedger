@@ -60,12 +60,14 @@ The header name `X-Signature` is confirmed by Naboopay's v2 docs. Webhooks are r
 |-----------|----------|-------------|------|
 | List balances | `balances.list` (query) | Live computed balances per account + SG total + School; `balanceAsOf(date)` for point-in-time (ADR 0016) | Session |
 | Event view | `reports.event` (query) | **All-time** income/expense/net for one event, by category (ADR 0022) | Session |
-| List transactions | `transactions.list` (query) | Filtered, paginated ledger | Session |
+| List transactions | `transactions.list` (query) | Cursor-paginated, newest first by `occurredAt`; filters: date range, account (either leg), category, event, source, type. `transactions.exportRows` returns the same filtered rows for CSV (ADR 0016, 0023) | Session |
+| Edit labels | `transactions.editLabels` (mutation) | Category, event and reason only; a category on a `needs_review` item also confirms it; follows the reversal chain; repeat is a no-op (ADR 0006, 0030) | Session |
+| Events | `events.list` / `events.create` / `events.setActive` | Add, close and reopen events; never delete (ADR 0022) | Session |
 | Create transaction | `transactions.create` (mutation) | Manual income/expense/transfer/allocation/withdrawal/`adjustment_up`/`adjustment_down` | Session |
 | Reverse transaction | `transactions.reverse` (mutation) | Create a `reversalOf` near-copy (same type/category/event, flipped by sign rule); at most one active reversal per target, no-op if already reversed (ADR 0020) | Session |
 | Mark withdrawal paid | `transactions.markWithdrawalPaid` (mutation) | Guarded `committed` → `paid`, no-op otherwise (ADR 0003, 0019) | Session |
 | Record payout | `transactions.recordPayout` (mutation) | Net transfer + "Provider fees" expense from gross-out/net-in (ADR 0015) | Session |
-| Review inbox | `review.list` (query) | Unlabelled, unmatched, drafts | Session |
+| Review inbox | `review.list`, `review.count` (queries) | Items with status `needs_review` or `draft`: unlabelled, unmatched, drafts. Labelled with `transactions.editLabels` (ADR 0006) | Session |
 | Reconcile | `reconciliations.create` (mutation) | Record a check + optional adjustment | Session |
 | Review report | `reports.term` (query) | **Period-scoped** (by `occurredAt`) totals by category/event, start/end `balanceAsOf`, full movement reconciliation, School movement, reconciliation history (ADR 0016, 0021) | Session |
 

@@ -8,7 +8,7 @@
 
 > SQL is shown below as a portable illustration of indexes, relationships, and access rules. In Convex these map to `defineTable`, `.index()`, and function-level auth checks respectively. The authoritative definition lives in `convex/schema.ts`.
 
-> **Decision records:** this schema reflects ADRs 0001–0029 in `docs/adr/`. Where
+> **Decision records:** this schema reflects ADRs 0001–0030 in `docs/adr/`. Where
 > a field or rule cites an ADR, that record is the rationale of record.
 
 ## Tables
@@ -175,6 +175,8 @@ CREATE INDEX idx_tx_naboopay_ref ON transactions(naboopayReference);
 CREATE INDEX idx_tx_account_occurred ON transactions(accountId, occurredAt);
 -- Review inbox
 CREATE INDEX idx_tx_status ON transactions(status);
+-- Transactions list: order + date range; other filters apply within the range (M3)
+CREATE INDEX idx_tx_occurred ON transactions(occurredAt);
 -- Event rollups
 CREATE INDEX idx_tx_event ON transactions(eventId);
 -- One draft per template per month: draftMonth is a "YYYY-MM" field (ADR 0025)

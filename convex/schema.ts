@@ -86,6 +86,7 @@ export default defineSchema({
     draftMonth: v.optional(v.string()), // "YYYY-MM" (ADR 0025)
     createdAt: v.number(),
   })
+    .index("by_occurredAt", ["occurredAt"]) // transactions list order + date range (M3)
     .index("by_accountId_and_occurredAt", ["accountId", "occurredAt"])
     .index("by_toAccountId_and_occurredAt", ["toAccountId", "occurredAt"])
     .index("by_status", ["status"])
