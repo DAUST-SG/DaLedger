@@ -36,20 +36,13 @@ DaLedger/
 │   │   ├── Report.tsx            # term report
 │   │   ├── Recurring.tsx         # templates (v1.1)
 │   │   └── Login.tsx
-│   ├── components/
-│   │   ├── AmountInput.tsx       # integer FCFA, large touch target
-│   │   ├── AccountCard.tsx       # balance tile
-│   │   ├── CategoryPicker.tsx    # with recent suggestions
-│   │   └── TransactionRow.tsx
-│   ├── hooks/
-│   │   ├── useBalances.ts
-│   │   ├── useTransactions.ts
-│   │   ├── useReview.ts
-│   │   └── useReconcile.ts
-│   ├── lib/
-│   │   ├── fcfa.ts               # formatFCFA / parseFCFA (integers, space sep)
-│   │   └── csv.ts                # client-side CSV from a filtered list
-│   └── types.ts                  # shared TS types (mirror of entities)
+│   ├── components/              # AmountInput, AccountCard, TransactionRow, PageHeader, …
+│   ├── hooks/                   # small helpers (e.g. useNames); screens call the
+│   │                           #   Convex client's useQuery/useMutation directly
+│   └── lib/
+│       ├── fcfa.ts               # formatFCFA / parseFCFA (integers, space sep)
+│       └── csv.ts                # client-side CSV from a filtered list
+│   # Types come from convex/_generated (no hand-written src/types.ts)
 ├── .env.example
 ├── vite.config.ts
 └── package.json
@@ -106,7 +99,7 @@ interface ReconcileInput { accountId: string; realBalance: number; adjust: boole
 
 // API wrappers (HTTP layer)
 interface ApiResponse<T> { data?: T; error?: ApiError; }
-interface ApiError { code: "UNAUTHORIZED" | "VALIDATION" | "DUPLICATE" | "NOT_FOUND" | "RATE_LIMITED" | "SERVER_ERROR"; message: string; [k: string]: unknown; }
+interface ApiError { code: "UNAUTHORIZED" | "VALIDATION" | "NOT_FOUND" | "SERVER_ERROR"; message: string; } // wire shape: { error: ApiError }. A duplicate is a 200 success, not an error; rate-limiting is deferred to pre-go-live.
 interface PaginatedResponse<T> { page: T[]; isDone: boolean; continueCursor: string; }
 
 // Balances
