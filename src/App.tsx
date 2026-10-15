@@ -8,17 +8,23 @@ import Transactions from "./routes/Transactions";
 import Events from "./routes/Events";
 import EventView from "./routes/EventView";
 import Reconcile from "./routes/Reconcile";
+import Report from "./routes/Report";
+import ErrorBoundary from "./components/ErrorBoundary";
+import ConnectionBanner from "./components/ConnectionBanner";
+import Loading from "./components/Loading";
 
 export default function App() {
   return (
     <>
       <AuthLoading>
-        <p className="p-6 text-muted">Loading…</p>
+        <div className="p-6"><Loading label="Signing you in…" rows={2} /></div>
       </AuthLoading>
       <Unauthenticated>
         <Login />
       </Unauthenticated>
       <Authenticated>
+        <ConnectionBanner />
+        <ErrorBoundary>
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/add" element={<AddTransaction />} />
@@ -27,8 +33,10 @@ export default function App() {
           <Route path="/events" element={<Events />} />
           <Route path="/events/:id" element={<EventView />} />
           <Route path="/reconcile" element={<Reconcile />} />
+          <Route path="/report" element={<Report />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </ErrorBoundary>
       </Authenticated>
     </>
   );

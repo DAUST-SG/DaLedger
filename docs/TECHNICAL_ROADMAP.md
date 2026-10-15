@@ -16,7 +16,7 @@ DaLedger/
 │   ├── review.ts                 # needs-review inbox list + count (labelling: transactions.editLabels)
 │   ├── events.ts                 # add / close / reopen events
 │   ├── reconciliations.ts        # create / correctOpening / status (value-based staleness) / history / preview
-│   ├── reports.ts                # term report aggregation query
+│   ├── reports.ts                # event view (all time) + term report (movement lines, per account, School, memos, checks, self-check)
 │   ├── recurring.ts              # template CRUD + draft generation (v1.1)
 │   ├── naboopay.ts               # Naboopay v2 client (GET only), webhook signature check, readBalance action
 │   ├── sweep.ts                  # order + payout sweeps, late-sale lookup, Detected-by-Naboopay query

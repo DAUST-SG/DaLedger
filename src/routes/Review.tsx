@@ -1,6 +1,7 @@
 import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import PageHeader from "../components/PageHeader";
+import Loading from "../components/Loading";
 import TransactionRow from "../components/TransactionRow";
 import { useNames } from "../hooks/useNames";
 
@@ -18,6 +19,7 @@ export default function Review() {
           Real money movements still missing a category, such as a sale reported without one or a Naboopay payout to an
           outside wallet. They already count in the balances. Tap an item, pick its category, and save to confirm it.
         </p>
+        {rows === undefined && <Loading />}
         {rows?.length === 0 && (
           <p className="rounded-xl border border-line bg-white p-4 text-center">Nothing to review. All entries are labelled.</p>
         )}

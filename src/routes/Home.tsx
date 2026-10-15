@@ -6,6 +6,7 @@ import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import AccountCard, { CheckLine } from "../components/AccountCard";
 import TransactionRow from "../components/TransactionRow";
+import Loading from "../components/Loading";
 import { useNames } from "../hooks/useNames";
 import { formatFCFA } from "../lib/fcfa";
 import { errorMessage } from "../lib/errors";
@@ -42,6 +43,7 @@ export default function Home() {
         </Link>
         <Link to="/transactions" className="h-10 px-4 rounded-full border border-line bg-white flex items-center shrink-0">Transactions</Link>
         <Link to="/events" className="h-10 px-4 rounded-full border border-line bg-white flex items-center shrink-0">Events</Link>
+        <Link to="/report" className="h-10 px-4 rounded-full border border-line bg-white flex items-center shrink-0">Term review</Link>
         <Link to="/reconcile" className="h-10 px-4 rounded-full border border-line bg-white flex items-center gap-2 shrink-0">
           Reconcile
           {stale > 0 && <span className="num min-w-6 h-6 px-1.5 rounded-full bg-loss text-white text-xs flex items-center justify-center">{stale}</span>}
@@ -224,6 +226,7 @@ function Recent() {
         <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">Latest transactions</h2>
         <Link to="/transactions" className="text-sm text-brand underline underline-offset-2">See all</Link>
       </div>
+      {status === "LoadingFirstPage" && <Loading rows={2} />}
       {status !== "LoadingFirstPage" && results.length === 0 && (
         <p className="text-muted text-sm">Nothing recorded yet. Use “Add transaction” below.</p>
       )}

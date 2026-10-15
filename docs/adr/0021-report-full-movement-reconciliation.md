@@ -4,6 +4,20 @@
 - **Date:** 2026-10-14
 - **Deciders:** Pikou (Lead, IT Committee)
 
+> **Refined in M6** (approved 2026-10-15):
+> - **School statement:** `allocations − paid withdrawals ± adjustments = change in
+>   receivable`. ADR 0017 and M4 allow adjustments on School, so the statement needs
+>   that line to balance.
+> - **Memos** (ADR 0011) appear in their own block, "Pre-cutover summaries (not in
+>   balances)", and in by-event totals with a marker. They never appear in the
+>   movement lines or the by-category totals, which therefore always equal the
+>   income and expense lines.
+> - **Per account:** each cash account gets its own start, end and movement lines
+>   (transfers shown as in and out), so each balance explains itself the same way.
+> - **Self-check:** `reports.term` returns `balanced`, which re-checks start + lines
+>   = end overall, per account and for School. The screen shows ✓, or a warning
+>   that should never appear.
+
 ## Context
 
 The report groups money by income/expense category. But several live types move

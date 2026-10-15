@@ -4,6 +4,7 @@ import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import PageHeader from "../components/PageHeader";
+import Loading from "../components/Loading";
 import { formatDate } from "../components/TransactionRow";
 import { formatFCFA, groupDigits, parseBalance } from "../lib/fcfa";
 import { errorMessage } from "../lib/errors";
@@ -152,7 +153,8 @@ function Check(props: { accountId: Id<"accounts">; name: string; isSchool: boole
 
 function History(props: { accountId: Id<"accounts"> }) {
   const rows = useQuery(api.reconciliations.history, { accountId: props.accountId });
-  if (!rows || rows.length === 0) return <p className="text-sm text-muted">No checks recorded for this account yet.</p>;
+  if (rows === undefined) return <Loading rows={1} />;
+  if (rows.length === 0) return <p className="text-sm text-muted">No checks recorded for this account yet.</p>;
   return (
     <section className="flex flex-col gap-2">
       <h2 className="text-sm font-semibold text-muted uppercase tracking-wide">Past checks</h2>

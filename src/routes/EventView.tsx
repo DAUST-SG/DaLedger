@@ -3,6 +3,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Id } from "../../convex/_generated/dataModel";
 import PageHeader from "../components/PageHeader";
+import Loading from "../components/Loading";
 import { formatFCFA } from "../lib/fcfa";
 
 /** An event's lifetime P&L, labelled "all time" (ADR 0022). */
@@ -14,6 +15,7 @@ export default function EventView() {
     <div className="min-h-full pb-10">
       <PageHeader title={view ? `${view.name}: all time` : "Event"} back="/events" />
       <main className="px-4 py-5 flex flex-col gap-5 max-w-2xl mx-auto">
+        {view === undefined && <Loading />}
         {view && (
           <>
             <p className="text-sm text-muted">

@@ -4,6 +4,7 @@ import { useConvex, usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import type { Doc, Id } from "../../convex/_generated/dataModel";
 import PageHeader from "../components/PageHeader";
+import Loading from "../components/Loading";
 import TransactionRow, { TYPE_LABEL } from "../components/TransactionRow";
 import { useNames } from "../hooks/useNames";
 import { download, toCSV } from "../lib/csv";
@@ -139,6 +140,7 @@ export default function Transactions() {
         </div>
         {exportError && <p role="alert" className="text-sm text-loss">{exportError}</p>}
 
+        {status === "LoadingFirstPage" && <Loading />}
         {status !== "LoadingFirstPage" && results.length === 0 && (
           <p className="rounded-xl border border-line bg-white p-4 text-center">{filtered ? "No transactions match these filters." : "Nothing recorded yet."}</p>
         )}
