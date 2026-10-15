@@ -73,7 +73,7 @@ The header name `X-Signature` is confirmed by Naboopay's v2 docs. Webhooks are r
 | Reconciliation status | `reconciliations.status`, `.history`, `.preview` (queries) | Last check per account, value-based staleness (ADR 0010, amended), past checks, computed balance now | Session |
 | Correct opening balance | `reconciliations.correctOpening` (mutation) | Cutover-dated adjustment for the difference; `openingBalance` never changes (ADR 0018) | Session |
 | Transaction history | `audit.forTransaction` (query) | Who, when, action and changed fields for one transaction (ADR 0014) | Session |
-| Review report | `reports.term` (query) | **Period-scoped** (by `occurredAt`) totals by category/event, start/end `balanceAsOf`, full movement reconciliation, School movement, reconciliation history (ADR 0016, 0021) | Session |
+| Review report | `reports.term` (query), `reports.cutover` | **Period-scoped** (by `occurredAt`) totals by category/event, start/end `balanceAsOf`, full movement reconciliation, School movement, reconciliation history (ADR 0016, 0021) | Session |
 
 ## Error Responses
 

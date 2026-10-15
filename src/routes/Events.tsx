@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import PageHeader from "../components/PageHeader";
+import Loading from "../components/Loading";
 import { errorMessage } from "../lib/errors";
 
 /** Add, close and reopen events. Closing only stops new tags (ADR 0022). */
@@ -45,7 +46,8 @@ export default function Events() {
           {error && <p role="alert" className="text-sm text-loss">{error}</p>}
         </form>
 
-        {events?.length === 0 && <p className="text-muted text-sm">No events yet.</p>}
+        {events === undefined && <Loading />}
+        {events?.length === 0 && <p className="text-muted text-sm">No events yet. Add the first one above.</p>}
         {events && events.length > 0 && (
           <ul className="flex flex-col divide-y divide-line rounded-xl border border-line bg-white">
             {events.map((ev) => (

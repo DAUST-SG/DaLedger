@@ -28,3 +28,9 @@ a, button, select, input, label { touch-action: manipulation; }
 :is(a, button:not(:disabled)) { transition: filter 120ms ease-out, background-color 120ms ease-out; }
 :is(a, button:not(:disabled)):hover { filter: brightness(0.94); }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* The term review prints as a clean document ("Save as PDF"). */
+@media print {
+  body { background: white; }
+  .break-inside-avoid { break-inside: avoid; }
+}
