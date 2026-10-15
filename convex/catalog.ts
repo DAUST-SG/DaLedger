@@ -31,14 +31,14 @@ export const forEntry = query({
 export const names = query({
   args: {},
   returns: v.object({
-    accounts: v.array(v.object({ _id: v.id("accounts"), name: v.string() })),
+    accounts: v.array(v.object({ _id: v.id("accounts"), key: accountKey, name: v.string() })),
     categories: v.array(v.object({ _id: v.id("categories"), name: v.string(), direction })),
     events: v.array(v.object({ _id: v.id("events"), name: v.string(), active: v.boolean() })),
   }),
   handler: async (ctx) => {
     await currentOfficer(ctx);
     return {
-      accounts: (await ctx.db.query("accounts").collect()).map(({ _id, name }) => ({ _id, name })),
+      accounts: (await ctx.db.query("accounts").collect()).map(({ _id, key, name }) => ({ _id, key, name })),
       categories: (await ctx.db.query("categories").collect()).map(({ _id, name, direction }) => ({ _id, name, direction })),
       events: (await ctx.db.query("events").collect()).map(({ _id, name, active }) => ({ _id, name, active })),
     };

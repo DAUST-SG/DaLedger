@@ -2,7 +2,7 @@ import { useQuery } from "convex/react";
 import { api } from "../../convex/_generated/api";
 import PageHeader from "../components/PageHeader";
 import Loading from "../components/Loading";
-import TransactionRow from "../components/TransactionRow";
+import { DayGroupedRows } from "../components/TransactionRow";
 import { useNames } from "../hooks/useNames";
 
 /** The Needs-review inbox (ADR 0006): labelling an item confirms it and clears it. */
@@ -21,12 +21,10 @@ export default function Review() {
         </p>
         {rows === undefined && <Loading />}
         {rows?.length === 0 && (
-          <p className="rounded-xl border border-line bg-white p-4 text-center">Nothing to review. All entries are labelled.</p>
+          <p className="rounded-2xl bg-white p-4 text-center shadow-[0_1px_0_var(--color-line)]">Nothing to review. Every entry has its category.</p>
         )}
         {rows && rows.length > 0 && (
-          <ul className="flex flex-col divide-y divide-line rounded-xl border border-line bg-white">
-            {rows.map((r) => <TransactionRow key={r._id} row={r} names={names} />)}
-          </ul>
+          <DayGroupedRows rows={rows} names={names} />
         )}
 
         <section className="flex flex-col gap-2 pt-2">
@@ -41,9 +39,7 @@ export default function Review() {
             money movement; tap it to see why.
           </p>
           {detected && detected.rows.length > 0 && (
-            <ul className="flex flex-col divide-y divide-line rounded-xl border border-line bg-white">
-              {detected.rows.map((r) => <TransactionRow key={r._id} row={r} names={names} />)}
-            </ul>
+            <DayGroupedRows rows={detected.rows} names={names} />
           )}
         </section>
       </main>

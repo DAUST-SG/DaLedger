@@ -1,5 +1,7 @@
 import { Link } from "react-router-dom";
 import { formatFCFA } from "../lib/fcfa";
+import type { AccountKey } from "../lib/money";
+import AccountBadge from "./AccountBadge";
 
 export type CheckStatus = { lastCheckedAt?: number; stale: boolean; openDifference: number };
 
@@ -26,11 +28,16 @@ export function CheckLine(props: { check?: CheckStatus; accountId: string }) {
   );
 }
 
-export default function AccountCard(props: { accountId: string; name: string; balance: number; check?: CheckStatus }) {
+export default function AccountCard(props: { accountId: string; accountKey?: AccountKey; name: string; balance: number; check?: CheckStatus }) {
   return (
-    <div className="rounded-xl border border-line bg-white px-4 py-3 min-w-0 flex flex-col gap-0.5">
-      <p className="text-sm text-muted">{props.name}</p>
-      <p className={`num text-lg truncate ${props.balance < 0 ? "text-loss" : ""}`}>{formatFCFA(props.balance)}</p>
+    <div className="rounded-2xl bg-white px-4 py-3.5 min-w-0 flex flex-col gap-2 shadow-[0_1px_0_var(--color-line)]">
+      <div className="flex items-center gap-2 min-w-0">
+        <AccountBadge accountKey={props.accountKey} size="sm" />
+        <p className="text-sm font-medium truncate">{props.name}</p>
+      </div>
+      <p className={`figure text-[1.35rem] leading-none font-semibold truncate ${props.balance < 0 ? "text-loss" : ""}`}>
+        {formatFCFA(props.balance)}
+      </p>
       <CheckLine check={props.check} accountId={props.accountId} />
     </div>
   );
