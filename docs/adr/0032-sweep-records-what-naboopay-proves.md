@@ -48,3 +48,8 @@ Naboopay":
   `read`-only.
 - Only orders and payouts after cutover are swept, so the first run doesn't
   record Naboopay's whole history.
+- **Payout classification is config-dependent.** Transfer-vs-expense hinges on
+  `NABOOPAY_SG_WALLETS` listing the SG's own wallets in the phone format Naboopay
+  returns (matching is digits-only, so the country-code prefix must be
+  consistent). If unset or mismatched, every payout is booked as an uncategorised
+  expense awaiting an officer — safe, but noisy. It is a required M5 env var.
