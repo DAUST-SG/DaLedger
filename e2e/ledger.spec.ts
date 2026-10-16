@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { addTransaction, readTotalHeld, uniqueReason } from "./helpers";
+import { addTransaction, readTotalHeld, expectTotalHeld, uniqueReason } from "./helpers";
 
 // These act on the shared dev backend with tiny amounts and assert on the change
 // in the total held, which is the most stable figure on Home. They leave data
@@ -19,7 +19,7 @@ test.describe("ledger money flows", () => {
       reason: uniqueReason("e2e expense"),
     });
 
-    expect(await readTotalHeld(page)).toBe(before - 500);
+    await expectTotalHeld(page, before - 500);
   });
 
   test("income raises the total held", async ({ page }) => {
@@ -34,7 +34,7 @@ test.describe("ledger money flows", () => {
       reason: uniqueReason("e2e income"),
     });
 
-    expect(await readTotalHeld(page)).toBe(before + 700);
+    await expectTotalHeld(page, before + 700);
   });
 
   test("a transfer leaves the total held unchanged (ADR 0004)", async ({ page }) => {
@@ -49,7 +49,7 @@ test.describe("ledger money flows", () => {
       reason: uniqueReason("e2e transfer"),
     });
 
-    expect(await readTotalHeld(page)).toBe(before);
+    await expectTotalHeld(page, before);
   });
 
   test("a School allocation does not change the total held (ADR 0004)", async ({ page }) => {
@@ -64,7 +64,7 @@ test.describe("ledger money flows", () => {
     });
 
     // Money the university *owes* the SG is never in the held total.
-    expect(await readTotalHeld(page)).toBe(before);
+    await expectTotalHeld(page, before);
     // And School shows as owed:
     await expect(page.getByText("Owed by the university")).toBeVisible();
   });
