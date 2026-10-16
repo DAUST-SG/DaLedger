@@ -19,14 +19,16 @@ export default defineConfig({
   // assert on a *delta* (read a balance, act, re-read). No parallelism.
   fullyParallel: false,
   workers: 1,
-  retries: process.env.CI ? 1 : 0,
-  timeout: 45_000,
+  retries: 2, // live app on a free tier: absorb cold-start / network flakes
+  timeout: 90_000,
   expect: { timeout: 15_000 }, // live network + Convex live queries
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
+    navigationTimeout: 60_000, // a cold Vercel + Convex start can be slow
+    actionTimeout: 20_000,
     ...devices["Pixel 7"], // phone-first, like the real users
   },
   projects: [

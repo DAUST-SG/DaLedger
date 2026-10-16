@@ -10,6 +10,7 @@ test.describe("smoke", () => {
   });
 
   test("the main sections open", async ({ page }) => {
+    const nav = page.locator('nav[aria-label="Sections"]');
     const sections: [RegExp, RegExp][] = [
       [/Needs review/i, /\/review/],
       [/Transactions/i, /\/transactions/],
@@ -20,10 +21,11 @@ test.describe("smoke", () => {
     ];
     for (const [label, url] of sections) {
       await page.goto("/");
-      await page.getByRole("link", { name: label }).first().click();
+      // Wait for live balances to settle so the nav isn't re-rendered mid-click.
+      await expect(page.locator('section[aria-label="Accounts"] .figure').first()).toBeVisible();
+      await nav.getByRole("link", { name: label }).click();
       await expect(page).toHaveURL(url);
-      // The page rendered something, not a blank crash.
-      await expect(page.locator("body")).toContainText(/\S/);
+      await expect(page.locator("main")).toContainText(/\S/);
     }
   });
 

@@ -14,7 +14,18 @@ export function parseAmount(text: string): number {
 export async function readTotalHeld(page: Page): Promise<number> {
   const figure = page.locator("header .figure").first();
   await expect(figure).toBeVisible();
+  await expect(figure).toHaveText(/\d/); // wait past the "…" loading placeholder
   return parseAmount(await figure.innerText());
+}
+
+/**
+ * Assert the total held settles to `expected` after an action — polls, because
+ * the figure updates via a reactive Convex query a beat after the mutation.
+ */
+export async function expectTotalHeld(page: Page, expected: number): Promise<void> {
+  await expect
+    .poll(async () => readTotalHeld(page), { timeout: 15_000, message: `total held should settle to ${expected}` })
+    .toBe(expected);
 }
 
 /**
@@ -60,14 +71,18 @@ export async function addTransaction(page: Page, e: Entry): Promise<void> {
 
   await page.locator("#amount").fill(String(e.amount));
 
-  // Account chips live under the "Paid from" / "Into" / "From" fieldset; their
-  // accessible name contains the account name. Account names don't collide with
-  // type/category labels.
-  await page.getByRole("button", { name: new RegExp(`\\b${escapeRe(e.account)}\\b`) }).first().click();
-
+  // School-sourced types (allocation, withdrawal) have no "from" account picker —
+  // the source is implicitly School, and the form shows a note instead of chips.
+  const schoolSourced = e.type === "School allocation" || e.type === "School withdrawal";
+  if (!schoolSourced) {
+    // Account chips are scoped to their fieldset (by legend), so the same account
+    // name in "From" and "To" never collides.
+    const fromLegend = e.type === "Transfer" ? "From" : e.type === "Income" ? "Into" : "Paid from";
+    await clickChipIn(page, fromLegend, e.account);
+  }
   if (e.toAccount) {
-    // The "To" / "Will be paid into" fieldset excludes the source account.
-    await page.getByRole("button", { name: new RegExp(`\\b${escapeRe(e.toAccount)}\\b`) }).first().click();
+    const toLegend = e.type === "Transfer" ? "To" : "Will be paid into (optional)";
+    await clickChipIn(page, toLegend, e.toAccount);
   }
 
   if (e.category) {
@@ -80,9 +95,15 @@ export async function addTransaction(page: Page, e: Entry): Promise<void> {
   await page.locator("#reason").fill(e.reason);
   await page.getByRole("button", { name: /^Save/ }).click();
 
-  // On success the form navigates back to Home.
-  await expect(page).toHaveURL(/\/$|\/$/);
+  // On success the form navigates back to Home; its header is the reliable signal.
+  // (If the entry didn't validate, this fails here with a screenshot of the error.)
   await expect(page.getByText("Held by the SG")).toBeVisible();
+}
+
+/** Click an account chip inside the fieldset whose legend is `legend`. */
+async function clickChipIn(page: Page, legend: string, account: string): Promise<void> {
+  const fieldset = page.locator("fieldset").filter({ has: page.getByText(legend, { exact: true }) });
+  await fieldset.getByRole("button", { name: new RegExp(`\\b${escapeRe(account)}\\b`) }).first().click();
 }
 
 function escapeRe(s: string): string {
