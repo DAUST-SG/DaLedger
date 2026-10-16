@@ -123,7 +123,7 @@ export default function AddTransaction() {
     <div className="min-h-full pb-10">
       <PageHeader title="Add transaction" />
 
-      <form onSubmit={onSubmit} className="px-4 py-5 flex flex-col gap-6 max-w-md mx-auto">
+      <form onSubmit={onSubmit} className="px-4 py-5 flex flex-col gap-6 max-w-md mx-auto lg:mx-0 lg:px-8">
         <fieldset className="flex flex-col gap-2">
           <legend className="sr-only">Type</legend>
           <div className="grid grid-cols-3 gap-1 rounded-2xl bg-brand-soft p-1">

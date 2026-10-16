@@ -28,7 +28,7 @@ export default function Events() {
   return (
     <div className="min-h-full pb-10">
       <PageHeader title="Events" />
-      <main className="px-4 py-5 flex flex-col gap-5 max-w-2xl mx-auto">
+      <main className="px-4 py-5 flex flex-col gap-5 max-w-2xl mx-auto lg:mx-0 lg:px-8 lg:max-w-5xl">
         <form onSubmit={onCreate} className="flex flex-col gap-2">
           <label htmlFor="event-name" className="text-sm font-medium">New event</label>
           <div className="flex gap-2">

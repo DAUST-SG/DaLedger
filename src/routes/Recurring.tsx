@@ -33,7 +33,7 @@ export default function Recurring() {
   return (
     <div className="min-h-full pb-10">
       <PageHeader title="Recurring bills" />
-      <main className="px-4 py-5 flex flex-col gap-5 max-w-2xl mx-auto">
+      <main className="px-4 py-5 flex flex-col gap-5 max-w-2xl mx-auto lg:mx-0 lg:px-8 lg:max-w-5xl">
         <p className="text-sm text-muted">
           Each bill prepares one draft a month on its due day. A draft moves no money until an officer confirms it in
           Needs review, or skips the month.

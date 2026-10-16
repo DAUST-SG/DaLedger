@@ -25,7 +25,7 @@ export default function Reconcile() {
   return (
     <div className="min-h-full pb-10">
       <PageHeader title="Reconcile" />
-      <main className="px-4 py-5 flex flex-col gap-6 max-w-xl mx-auto">
+      <main className="px-4 py-5 flex flex-col gap-6 max-w-xl mx-auto lg:mx-0 lg:px-8">
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium">Account</span>
           <select

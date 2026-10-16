@@ -28,12 +28,12 @@ export default function Home() {
   const badge = "absolute top-2.5 right-2.5 min-w-5 h-5 px-1.5 rounded-full text-white text-[0.7rem] font-semibold flex items-center justify-center num";
 
   return (
-    <div className="min-h-full pb-28">
+    <div className="min-h-full pb-28 lg:pb-10">
       <header className="bg-brand text-white">
-        <div className="max-w-2xl mx-auto px-5 pt-5 pb-8">
+        <div className="max-w-2xl mx-auto px-5 pt-5 pb-8 lg:max-w-6xl lg:mx-0 lg:px-8 lg:pt-8 lg:pb-12">
           <div className="flex items-center justify-between gap-3">
             <h1 className="font-semibold tracking-tight">DaLedger <span className="font-normal text-white/60">· DAUST SG</span></h1>
-            <div className="flex items-center gap-3 text-sm text-white/75 min-w-0">
+            <div className="flex items-center gap-3 text-sm text-white/75 min-w-0 lg:hidden">
               <span className="truncate">{me?.name ?? me?.email}</span>
               <button onClick={() => void signOut()} className="underline underline-offset-2">Sign out</button>
             </div>
@@ -46,7 +46,8 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="px-4 -mt-4 flex flex-col gap-5 max-w-2xl mx-auto">
+      <main className="px-4 -mt-4 max-w-2xl mx-auto grid gap-5 lg:max-w-6xl lg:mx-0 lg:px-8 lg:-mt-6 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)] lg:items-start lg:gap-8">
+        <div className="flex flex-col gap-5 min-w-0">
         <section aria-label="Accounts" className="grid grid-cols-2 gap-2.5">
           {accountsReady
             ? balances.accounts.map((a) => (
@@ -75,7 +76,7 @@ export default function Home() {
           />
         )}
 
-        <nav aria-label="Sections" className="grid grid-cols-3 gap-2.5">
+        <nav aria-label="Sections" className="grid grid-cols-3 gap-2.5 lg:hidden">
           <Link to="/review" className={section}>
             <span className="font-medium leading-tight">Needs review</span>
             <span className="text-xs text-muted">{inbox ? `${inbox} waiting` : "All clear"}</span>
@@ -103,13 +104,16 @@ export default function Home() {
             <span className="text-xs text-muted">{overdue ? `${overdue} overdue` : "Monthly bills"}</span>
           </Link>
         </nav>
+        </div>
 
-        <Recent />
+        <div className="min-w-0 lg:pt-6">
+          <Recent />
+        </div>
       </main>
 
       <Link
         to="/add"
-        className="fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] left-4 right-4 mx-auto max-w-md h-14 rounded-2xl bg-brand-deep text-white text-lg font-semibold flex items-center justify-center gap-2 shadow-[0_8px_24px_-8px_rgb(42_25_83/0.6)]"
+        className="lg:hidden fixed bottom-[calc(1.25rem+env(safe-area-inset-bottom,0px))] left-4 right-4 mx-auto max-w-md h-14 rounded-2xl bg-brand-deep text-white text-lg font-semibold flex items-center justify-center gap-2 shadow-[0_8px_24px_-8px_rgb(42_25_83/0.6)]"
       >
         <span aria-hidden="true" className="text-2xl leading-none">+</span> Add transaction
       </Link>
