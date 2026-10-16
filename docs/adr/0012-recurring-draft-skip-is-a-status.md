@@ -4,6 +4,12 @@
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
 - **Scope:** v1.1 (recurring expenses)
+- **Implemented:** M7 (2026-10-15), with three approved details:
+  - a template's first draft is its next due day on or after the day it was created, so it never starts overdue;
+  - amount, date, account and category may be corrected when confirming (a draft has moved no money, so ADR 0030 applies only once it is confirmed);
+  - skipping requires a reason, kept in the `skip_draft` audit entry.
+
+  Drafts are generated daily (UTC, which is Dakar time) by `recurring.generate`.
 
 ## Context
 

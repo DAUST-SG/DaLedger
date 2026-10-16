@@ -9,6 +9,7 @@ import Events from "./routes/Events";
 import EventView from "./routes/EventView";
 import Reconcile from "./routes/Reconcile";
 import Report from "./routes/Report";
+import Recurring from "./routes/Recurring";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ConnectionBanner from "./components/ConnectionBanner";
 import Loading from "./components/Loading";
@@ -34,6 +35,7 @@ export default function App() {
           <Route path="/events/:id" element={<EventView />} />
           <Route path="/reconcile" element={<Reconcile />} />
           <Route path="/report" element={<Report />} />
+          <Route path="/recurring" element={<Recurring />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </ErrorBoundary>
