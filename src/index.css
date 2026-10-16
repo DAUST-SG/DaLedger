@@ -1,18 +1,33 @@
 @import "tailwindcss";
 
-/* DAUST SG: a deep violet ground for headers, ink-violet text, quiet lilac greys. */
+/*
+ * DAUST SG ledger. Cool lilac paper, deep violet ink, DAUST violet for structure.
+ * The one bold element: each account has its own colour (Wave blue, Orange Money
+ * orange, banknote-green cash, Naboopay indigo, School violet), carried into rows.
+ * Money in is green, money out is red, moves between accounts are neutral.
+ */
 @theme {
   --font-sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --font-figure: "IBM Plex Sans Condensed", "IBM Plex Sans", system-ui, sans-serif;
   --color-brand: #3b2470;
-  --color-brand-soft: #ede8f6;
-  --color-ink: #1c1828;
-  --color-muted: #6a6380;
-  --color-line: #e2dded;
-  --color-page: #f6f4fa;
-  --color-gain: #17734a;
-  --color-loss: #a8322a;
+  --color-brand-deep: #2a1953;
+  --color-brand-soft: #ece7f7;
+  --color-ink: #1b1631;
+  --color-muted: #686280;
+  --color-line: #e3deee;
+  --color-page: #f6f4fb;
+  --color-gain: #127249;
+  --color-gain-soft: #e3f3ea;
+  --color-loss: #b0352b;
+  --color-loss-soft: #fbe9e7;
+  --color-move: #5c5679;
+  --color-move-soft: #eeecf4;
   --color-warn: #8a5300;
+  --color-acc-naboopay: #4053c8;
+  --color-acc-wave: #1592c9;
+  --color-acc-om: #e2700b;
+  --color-acc-cash: #2b8457;
+  --color-acc-school: #6b3fc4;
 }
 
 html, body, #root { height: 100%; }
@@ -22,8 +37,12 @@ body {
   font-family: var(--font-sans);
   -webkit-tap-highlight-color: transparent;
 }
-.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
-:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+.figure { font-family: var(--font-figure); font-variant-numeric: tabular-nums; letter-spacing: -0.01em; }
+/* In the base layer so a component's own focus style (utilities) can override it. */
+@layer base {
+  :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+}
 a, button, select, input, label { touch-action: manipulation; }
 :is(a, button:not(:disabled)) { transition: filter 120ms ease-out, background-color 120ms ease-out; }
 :is(a, button:not(:disabled)):hover { filter: brightness(0.94); }

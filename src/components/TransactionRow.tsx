@@ -5,6 +5,8 @@ import type { Doc, Id } from "../../convex/_generated/dataModel";
 import { formatFCFA, groupDigits, parseFCFA } from "../lib/fcfa";
 import { errorMessage } from "../lib/errors";
 import { useNames } from "../hooks/useNames";
+import { dayLabel, DIRECTION_STYLE, direction } from "../lib/money";
+import AccountBadge from "./AccountBadge";
 
 export const TYPE_LABEL: Record<Doc<"transactions">["type"], string> = {
   income: "Income",
@@ -30,6 +32,7 @@ export type Row = {
   occurredAt?: number;
   createdAt: number;
   reversalOf?: Id<"transactions">;
+  flip?: 1 | -1;
   reversed: boolean;
 };
 
@@ -39,43 +42,96 @@ export function formatDate(ms?: number): string {
 
 const input = "h-11 rounded-lg border border-line bg-white px-3 w-full";
 
-/** One ledger row: tap to open label edits (ADR 0030) and Reverse (ADR 0002). */
+/** Short label for the kind of entry, as an officer would say it. */
+function kindLabel(row: Row): string {
+  if (row.status === "draft") return "Recurring bill (draft)";
+  if (row.status === "skipped") return "Recurring bill (skipped)";
+  if (row.type === "school_withdrawal") return row.status === "committed" ? "School withdrawal, not paid yet" : "Drawn from the university";
+  return `${row.reversalOf ? "Reversal of " : ""}${TYPE_LABEL[row.type].toLowerCase()}`.replace(/^./, (c) => c.toUpperCase());
+}
+
+/** One ledger row: tap to open label edits (ADR 0030), Reverse (ADR 0002), history. */
 export default function TransactionRow(props: { row: Row; names: ReturnType<typeof useNames> }) {
   const { row, names } = props;
   const [open, setOpen] = useState(false);
-  const accounts = [names.account.get(row.accountId), row.toAccountId && names.account.get(row.toAccountId)].filter(Boolean).join(" → ");
-  const meta = [
-    formatDate(row.occurredAt),
-    `${row.reversalOf ? "Reversal of " : ""}${TYPE_LABEL[row.type]}`,
-    accounts,
-    row.categoryId && names.category.get(row.categoryId),
-    row.eventId && names.event.get(row.eventId),
-    row.source !== "manual" && row.source,
-    row.status === "needs_review" && "needs a label",
-    row.status === "cancelled" && "cancelled",
-    row.status === "draft" && ((row.occurredAt ?? 0) < new Date().setUTCHours(0, 0, 0, 0) ? "recurring draft · overdue" : "recurring draft"),
-    row.status === "skipped" && "skipped this month",
-    row.reversed && "reversed",
-  ].filter(Boolean);
+  const dir = direction(row);
+  const tone = DIRECTION_STYLE[dir];
+  const from = names.account.get(row.accountId);
+  const to = row.toAccountId && names.account.get(row.toAccountId);
+  const overdue = row.status === "draft" && (row.occurredAt ?? 0) < new Date().setUTCHours(0, 0, 0, 0);
+  const flags = [
+    row.status === "needs_review" && { text: row.categoryId && names.category.get(row.categoryId) !== "Unlabeled" ? "Needs a category" : "Needs a label", tone: "text-warn" },
+    overdue && { text: "Overdue", tone: "text-loss" },
+    row.status === "cancelled" && { text: "Cancelled", tone: "text-muted" },
+    row.reversed && { text: "Reversed", tone: "text-muted" },
+    row.source !== "manual" && row.source !== "recurring" && { text: row.source === "naboopay" ? "From Naboopay" : `From ${row.source}`, tone: "text-muted" },
+  ].filter(Boolean) as { text: string; tone: string }[];
+  const struck = row.reversed || row.status === "cancelled" || row.status === "skipped";
 
   return (
-    <li className="px-4 py-3 flex flex-col gap-3">
+    <li className="flex flex-col">
       <button
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className="flex items-start justify-between gap-3 text-left w-full"
+        className="flex items-center gap-3 text-left w-full px-4 py-3"
       >
-        <span className="min-w-0">
-          <span className="block truncate">{row.reason}</span>
-          <span className="block text-xs text-muted">{meta.join(" · ")}</span>
+        <span className="relative shrink-0">
+          <AccountBadge accountKey={names.accountKey.get(row.accountId)} />
+          <span
+            aria-label={tone.label}
+            className={`absolute -right-1 -bottom-1 size-4 rounded-full ring-2 ring-white text-[0.6rem] leading-none font-bold flex items-center justify-center ${tone.bg} ${tone.text}`}
+          >
+            {dir === "in" ? "↓" : dir === "out" ? "↑" : dir === "move" ? "⇄" : "·"}
+          </span>
         </span>
-        <span className={`num shrink-0 ${row.reversed || row.status === "cancelled" ? "line-through text-muted" : ""}`}>
-          {formatFCFA(row.amount)}
+        <span className="min-w-0 flex-1">
+          <span className="block font-medium leading-snug line-clamp-2">{row.reason}</span>
+          <span className="block text-xs text-muted truncate">
+            {kindLabel(row)}
+            {to ? ` · ${from} → ${to}` : ` · ${from}`}
+            {row.categoryId && names.category.get(row.categoryId) !== "Unlabeled" ? ` · ${names.category.get(row.categoryId)}` : ""}
+            {row.eventId ? ` · ${names.event.get(row.eventId)}` : ""}
+          </span>
+          {flags.length > 0 && (
+            <span className="flex flex-wrap gap-x-2 text-xs font-medium">
+              {flags.map((f) => <span key={f.text} className={f.tone}>{f.text}</span>)}
+            </span>
+          )}
+        </span>
+        <span className={`num shrink-0 text-right font-semibold ${struck ? "line-through text-muted" : tone.text}`}>
+          {tone.sign}{formatFCFA(row.amount).replace(" FCFA", "")}
+          <span className="block text-[0.7rem] font-normal text-muted no-underline">FCFA</span>
         </span>
       </button>
-      {open && (row.status === "draft" ? <DraftActions row={row} onDone={() => setOpen(false)} /> : <RowActions row={row} onDone={() => setOpen(false)} />)}
+      {open && (
+        <div className="px-4 pb-4">
+          {row.status === "draft" ? <DraftActions row={row} onDone={() => setOpen(false)} /> : <RowActions row={row} onDone={() => setOpen(false)} />}
+        </div>
+      )}
     </li>
+  );
+}
+
+/** Rows grouped under day headings (Today, Yesterday, Mon 13 Oct), newest first. */
+export function DayGroupedRows(props: { rows: Row[]; names: ReturnType<typeof useNames> }) {
+  const groups: { label: string; rows: Row[] }[] = [];
+  for (const r of props.rows) {
+    const label = dayLabel(r.occurredAt);
+    if (groups.at(-1)?.label !== label) groups.push({ label, rows: [] });
+    groups.at(-1)!.rows.push(r);
+  }
+  return (
+    <div className="flex flex-col gap-4">
+      {groups.map((g, i) => (
+        <section key={`${g.label}-${i}`} aria-label={g.label} className="flex flex-col gap-1.5">
+          <h3 className="px-1 text-sm font-semibold text-muted">{g.label}</h3>
+          <ul className="flex flex-col divide-y divide-line rounded-2xl bg-white shadow-[0_1px_0_var(--color-line)]">
+            {g.rows.map((r) => <TransactionRow key={r._id} row={r} names={props.names} />)}
+          </ul>
+        </section>
+      ))}
+    </div>
   );
 }
 
