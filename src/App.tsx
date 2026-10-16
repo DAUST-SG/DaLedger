@@ -13,6 +13,7 @@ import Recurring from "./routes/Recurring";
 import ErrorBoundary from "./components/ErrorBoundary";
 import ConnectionBanner from "./components/ConnectionBanner";
 import Loading from "./components/Loading";
+import Sidebar from "./components/Sidebar";
 
 export default function App() {
   return (
@@ -24,6 +25,8 @@ export default function App() {
         <Login />
       </Unauthenticated>
       <Authenticated>
+        <Sidebar />
+        <div className="lg:pl-64 min-h-full">
         <ConnectionBanner />
         <ErrorBoundary>
         <Routes>
@@ -39,6 +42,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         </ErrorBoundary>
+        </div>
       </Authenticated>
     </>
   );

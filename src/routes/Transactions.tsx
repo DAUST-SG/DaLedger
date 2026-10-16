@@ -100,7 +100,7 @@ export default function Transactions() {
   return (
     <div className="min-h-full pb-10">
       <PageHeader title="Transactions" />
-      <main className="px-4 py-5 flex flex-col gap-4 max-w-3xl mx-auto">
+      <main className="px-4 py-5 flex flex-col gap-4 max-w-3xl mx-auto lg:mx-0 lg:px-8 lg:max-w-5xl">
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"

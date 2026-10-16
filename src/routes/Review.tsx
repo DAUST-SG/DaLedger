@@ -14,7 +14,7 @@ export default function Review() {
   return (
     <div className="min-h-full pb-10">
       <PageHeader title="Needs review" />
-      <main className="px-4 py-5 flex flex-col gap-4 max-w-2xl mx-auto">
+      <main className="px-4 py-5 flex flex-col gap-4 max-w-2xl mx-auto lg:mx-0 lg:px-8 lg:max-w-5xl">
         <p className="text-sm text-muted">
           Real money movements still missing a category, such as a sale reported without one or a Naboopay payout to an
           outside wallet. They already count in the balances. Tap an item, pick its category, and save to confirm it.

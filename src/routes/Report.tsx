@@ -64,7 +64,7 @@ export default function Report() {
   return (
     <div className="min-h-full pb-10">
       <div className="print:hidden"><PageHeader title="Term review" /></div>
-      <main className="px-4 py-5 flex flex-col gap-6 max-w-3xl mx-auto">
+      <main className="px-4 py-5 flex flex-col gap-6 max-w-3xl mx-auto lg:mx-0 lg:px-8">
         <section aria-label="Period" className="flex flex-col gap-3 print:hidden">
           <div className="grid grid-cols-2 gap-2">
             <label className="flex flex-col gap-1 text-xs text-muted">From
