@@ -32,13 +32,8 @@ export default defineConfig({
     ...devices["Pixel 7"], // phone-first, like the real users
   },
   projects: [
-    // Logs in once and saves the session; every other test reuses it.
-    { name: "setup", testMatch: /auth\.setup\.ts/ },
-    {
-      name: "chromium",
-      dependencies: ["setup"],
-      use: { storageState: "e2e/.auth/officer.json" },
-      testIgnore: /auth\.setup\.ts/,
-    },
+    // Each test logs in fresh in its own context (see e2e/fixtures.ts) — no shared
+    // storageState, which would trip Convex Auth's refresh-token-reuse detection.
+    { name: "chromium" },
   ],
 });
