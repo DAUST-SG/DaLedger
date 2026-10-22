@@ -19,3 +19,10 @@ build/
 
 # Vercel CLI link (per machine)
 .vercel
+
+# Playwright E2E: artifacts, saved session, and local credentials
+/test-results/
+/playwright-report/
+/playwright/.cache/
+e2e/.auth/
+e2e/.env.e2e

@@ -74,6 +74,24 @@ export const addOfficer = internalAction({
   },
 });
 
+/**
+ * Activate or deactivate an officer by email (ADR 0023). Deactivating is the only
+ * way to revoke access — a deactivated officer can neither sign in nor call any
+ * officer function. There is no self-service UI for this yet, so it runs here.
+ *   npx convex run seed:setActive '{"email":"…","active":false}'
+ */
+export const setActive = internalMutation({
+  args: { email: v.string(), active: v.boolean() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    const email = args.email.trim().toLowerCase();
+    const user = await ctx.db.query("users").withIndex("email", (q) => q.eq("email", email)).unique();
+    if (!user) throw new ConvexError("No officer with that email.");
+    await ctx.db.patch(user._id, { active: args.active });
+    return null;
+  },
+});
+
 /** Add an event tag (M1 has no events screen). */
 export const addEvent = internalMutation({
   args: { name: v.string() },
