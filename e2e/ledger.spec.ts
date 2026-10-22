@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { addTransaction, readTotalHeld, expectTotalHeld, uniqueReason } from "./helpers";
 
 // These act on the shared dev backend with tiny amounts and assert on the change
