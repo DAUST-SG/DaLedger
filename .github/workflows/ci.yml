@@ -1,0 +1,39 @@
+name: CI
+
+# The hermetic gate that must pass before anything reaches dev or main.
+# Runs the TypeScript checks and the convex-test unit suite (balance engine +
+# idempotency guards — CLAUDE.md §5). No Convex deployment or secrets needed.
+# The Playwright E2E suite is a separate, local/pre-release check (it needs a
+# seeded Convex deployment), so it is intentionally not run here.
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [dev, main]
+
+# A newer push to the same branch/PR cancels the older, still-running check.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: typecheck + unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck (app + convex)
+        run: npm run typecheck
+
+      - name: Unit tests (balance engine + idempotency)
+        run: npm test
