@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-10-13
 - **Deciders:** Pikou (Lead, IT Committee)
-- **Amended by:** ADR 0026; M2 decision of 2026-10-14 (unmatched refund → 404)
+- **Amended by:** ADR 0026; M2 decision of 2026-10-14 (unmatched refund → 404); pre-go-live decision of 2026-10-22 (429 is retryable)
 
 > **Amended by ADR 0026.** Naboopay v2 has a refund API (`GET /refund/{order_id}`)
 > and a `refunded` status. The source's refund intake below is still the capture
@@ -51,3 +51,7 @@ each-idempotent records.
   reconciliation against the real Naboopay balance is the final backstop.
 - Reversals created this way still follow ADR 0002 (near-copy of the original,
   flipped by the reversal sign rule).
+- **Amended 2026-10-22 (pre-go-live rate limiting):** intake answers `429
+  RATE_LIMITED` with a `Retry-After` header when a source exceeds its rate limit.
+  Nothing is written, so backends treat `429` as **retryable**, like a 5xx: wait at
+  least `Retry-After` seconds, then retry. Idempotency keeps the retry safe.

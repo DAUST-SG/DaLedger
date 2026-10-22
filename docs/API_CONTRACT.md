@@ -12,7 +12,7 @@ Record one confirmed shop/DaBus payment. Idempotent on `(source, externalId, kin
 
 **For the shop and DaBus backends**
 - Call this **only on the transition to `paid`**, never at checkout. There is no "pending" path, so an unpaid order can never appear.
-- Retry on any 5xx or network error. Retries are safe: a repeat returns `200` with `duplicate: true` and creates nothing.
+- Retry on any 5xx, a `429`, or a network error. On `429`, wait at least the `Retry-After` seconds first (ADR 0005, amended). Retries are safe: a repeat returns `200` with `duplicate: true` and creates nothing.
 - **Category:** send `category` if you know it. The tracker uses it if it names an income category, else your source's default, else `Unlabeled` for an officer to label (ADR 0029). A category is never a reason for an error.
 - **Event:** an unknown or closed event name is dropped, not rejected; the sale is still recorded.
 
@@ -57,6 +57,12 @@ Record one confirmed shop/DaBus payment. Idempotent on `(source, externalId, kin
 
 ```json
 { "error": { "code": "UNAUTHORIZED", "message": "Unknown or revoked intake key." } }
+```
+
+**Response (error) — 429 Too Many Requests**, with a `Retry-After` header (seconds). Each source may send about 60 requests a minute with bursts up to 120, shared with refunds. Requests with a bad key are capped together (about 30 a minute, bursts up to 60) and then also get 429. Nothing is written; retry after the delay.
+
+```json
+{ "error": { "code": "RATE_LIMITED", "message": "Too many requests. Retry after the Retry-After delay; retries are safe." } }
 ```
 
 ---
@@ -154,6 +160,8 @@ The webhook **creates nothing** (ADR 0008): on a match it confirms, on a non-mat
 ```json
 { "error": { "code": "UNAUTHORIZED", "message": "Invalid webhook signature." } }
 ```
+
+**Response (error) — 429 Too Many Requests**, with `Retry-After`: past about 120 signed calls a minute (bursts up to 240), or once the shared cap on bad signatures is spent. Safe, because the webhook writes nothing and the sweep catches up.
 
 ---
 

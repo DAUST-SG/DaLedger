@@ -19,6 +19,7 @@ import type * as intake from "../intake.js";
 import type * as intakeKeys from "../intakeKeys.js";
 import type * as ledger from "../ledger.js";
 import type * as naboopay from "../naboopay.js";
+import type * as rateLimits from "../rateLimits.js";
 import type * as reconciliations from "../reconciliations.js";
 import type * as recurring from "../recurring.js";
 import type * as reports from "../reports.js";
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   intakeKeys: typeof intakeKeys;
   ledger: typeof ledger;
   naboopay: typeof naboopay;
+  rateLimits: typeof rateLimits;
   reconciliations: typeof reconciliations;
   recurring: typeof recurring;
   reports: typeof reports;
@@ -80,4 +82,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  rateLimiter: import("@convex-dev/rate-limiter/_generated/component.js").ComponentApi<"rateLimiter">;
+};
