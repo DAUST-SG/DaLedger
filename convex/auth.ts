@@ -15,6 +15,8 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       },
     }),
   ],
+  // SECURITY.md §2: signed out after 7 idle days, and after 30 days at most.
+  session: { inactiveDurationMs: 7 * 24 * 60 * 60 * 1000, totalDurationMs: 30 * 24 * 60 * 60 * 1000 },
   callbacks: {
     // A deactivated officer cannot sign in (ADR 0023).
     async beforeSessionCreation(ctx, { userId }) {

@@ -1,6 +1,11 @@
-/** One CSV cell: quoted when it holds a comma, quote or line break (RFC 4180). */
+/**
+ * One CSV cell: quoted when it holds a comma, quote or line break (RFC 4180).
+ * Text starting with = + - @ or a tab/CR gets a leading ' so a spreadsheet shows
+ * it instead of running it as a formula (reasons can come from the shop/DaBus).
+ */
 function cell(value: string | number | undefined | null): string {
-  const s = value === undefined || value === null ? "" : String(value);
+  let s = value === undefined || value === null ? "" : String(value);
+  if (typeof value === "string" && /^[=+\-@\t\r]/.test(s)) s = `'${s}`;
   return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
