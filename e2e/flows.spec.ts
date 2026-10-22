@@ -89,6 +89,26 @@ test.describe("deeper flows", () => {
       .toBe(real);
   });
 
+  test("a school withdrawal moves money only when marked paid (ADR 0003)", async ({ page }) => {
+    await page.goto("/");
+    const before = await readTotalHeld(page);
+
+    // A school withdrawal is approved but *committed* — it moves no money yet.
+    const reason = uniqueReason("e2e withdrawal");
+    await addTransaction(page, { type: "School withdrawal", amount: 500, account: "School", reason });
+    await expectTotalHeld(page, before);
+
+    // It waits on the School card as "approved, not yet paid". Pay it into Cash.
+    const card = page.locator("section").filter({ hasText: "Owed by the university" });
+    await expect(card.getByText(/Approved, not yet paid/)).toBeVisible();
+    const withdrawal = card.locator("div").filter({ hasText: reason }).first();
+    await withdrawal.getByLabel("Paid into").selectOption({ label: "Cash" });
+    await withdrawal.getByRole("button", { name: "Mark paid" }).click();
+
+    // Now the cash has arrived from the university: the held total rises by the amount.
+    await expectTotalHeld(page, before + 500);
+  });
+
   test("the term report reconciles: start + lines = end", async ({ page }) => {
     await page.goto("/report");
 
