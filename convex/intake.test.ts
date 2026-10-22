@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
+import rateLimiter from "@convex-dev/rate-limiter/test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import schema from "./schema";
 import { internal } from "./_generated/api";
@@ -27,6 +28,7 @@ const sale = (over: Record<string, unknown> = {}) => ({
 
 async function setup() {
   const t = convexTest(schema, modules);
+  rateLimiter.register(t);
   await t.mutation(internal.seed.accounts, { opening: { naboopay: 1000, wave: 0, om: 0, cash: 0, school: 0 } });
   await t.mutation(internal.seed.addEvent, { name: "Integration Week" });
   const post = (path: string, body: unknown, key: string | null = SHOP_KEY) =>
@@ -218,5 +220,37 @@ describe("POST /intake/income/refund", () => {
   test("a refund needs a valid key too", async () => {
     const { post } = await setup();
     expect((await post("/intake/income/refund", { source: "shop", externalId: "X" }, null)).status).toBe(401);
+  });
+});
+
+describe("rate limits (pre-go-live, CLAUDE.md §4)", () => {
+  // Freeze the clock so the token buckets do not refill mid-test.
+  beforeEach(() => vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] }));
+  afterEach(() => vi.useRealTimers());
+
+  test("past the burst a source gets 429 with Retry-After, and nothing is written", async () => {
+    const { post, rows } = await setup();
+    for (let i = 0; i < 120; i++) expect((await post("/intake/income", sale({ externalId: `B-${i}` }))).status).toBe(201);
+    const res = await post("/intake/income", sale({ externalId: "B-over" }));
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get("Retry-After"))).toBeGreaterThanOrEqual(1);
+    expect(await res.json()).toMatchObject({ error: { code: "RATE_LIMITED" } });
+    expect(await rows()).toHaveLength(120);
+  });
+
+  test("one source over its limit does not block another; refunds share the allowance", async () => {
+    const { post } = await setup();
+    for (let i = 0; i < 119; i++) await post("/intake/income", sale({ externalId: `S-${i}` }));
+    expect((await post("/intake/income/refund", { source: "shop", externalId: "S-0" })).status).toBe(201);
+    expect((await post("/intake/income/refund", { source: "shop", externalId: "S-1" })).status).toBe(429);
+    expect((await post("/intake/income", sale({ source: "dabus" }), DABUS_KEY)).status).toBe(201);
+  });
+
+  test("bad keys do not spend a source's allowance, and are capped as a whole", async () => {
+    const { post } = await setup();
+    for (let i = 0; i < 60; i++) expect((await post("/intake/income", sale(), "wrong-key-0123456789")).status).toBe(401);
+    expect((await post("/intake/income", sale(), "wrong-key-0123456789")).status).toBe(429);
+    expect((await post("/intake/income", sale(), null)).status).toBe(429);
+    expect((await post("/intake/income", sale())).status).toBe(201);
   });
 });

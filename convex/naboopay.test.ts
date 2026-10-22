@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
+import rateLimiter from "@convex-dev/rate-limiter/test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
@@ -58,6 +59,7 @@ const paidOrder = (id: string, amount: number, paidAgo: number, over: Tx = {}) =
 
 async function setup() {
   const t = convexTest(schema, modules);
+  rateLimiter.register(t);
   await t.mutation(internal.seed.accounts, { opening: { naboopay: 0, wave: 0, om: 0, cash: 0, school: 0 } });
   const userId = await t.run((ctx) => ctx.db.insert("users", { email: "o@daust.sg", name: "Awa", role: "officer", active: true }));
   const as = t.withIdentity({ subject: `${userId}|s` });
@@ -98,6 +100,22 @@ describe("webhook /intake/naboopay (ADR 0008)", () => {
   const body = '{"order_id":"ord-1","amount":5000,"transaction_status":"paid"}';
   const post = (t: ReturnType<typeof convexTest>, raw: string, sig: string | null) =>
     t.fetch("/intake/naboopay", { method: "POST", headers: sig ? { "X-Signature": sig } : {}, body: raw });
+
+  test("bad signatures are capped, then valid calls past the webhook limit get 429", async () => {
+    vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
+    try {
+      const { t } = await setup();
+      for (let i = 0; i < 60; i++) expect((await post(t, body, "00")).status).toBe(401);
+      expect((await post(t, body, "00")).status).toBe(429);
+      const sig = await sign(body);
+      for (let i = 0; i < 240; i++) expect((await post(t, body, sig)).status).toBe(200);
+      const res = await post(t, body, sig);
+      expect(res.status).toBe(429);
+      expect(res.headers.get("Retry-After")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 
   test("a valid signature over the raw body is accepted and writes nothing", async () => {
     const { t, rows } = await setup();

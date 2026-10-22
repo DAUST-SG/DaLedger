@@ -168,7 +168,7 @@ questions; coordinate them early:
   dashboard under Settings → Integration → Webhooks.
 - **Shop & DaBus backend changes**: create transactions with
   `fees_customer_side: true`, persist Naboopay's returned `order_id`, and call
-  `/intake/income` on the transition to `paid` (ADR 0026); retry on 5xx, and treat a
+  `/intake/income` on the transition to `paid` (ADR 0026); retry on 5xx and on 429 (after `Retry-After`), and treat a
   refund `404` as **retryable** (ADR 0005, amended).
 - **Verified opening balances** + a university statement for the School receivable.
 - A **small test budget** (real FCFA) for live testing.
