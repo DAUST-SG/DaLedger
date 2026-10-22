@@ -116,7 +116,8 @@ Officer list queries use Convex cursor pagination:
 
 | Category | Limit | Notes |
 |----------|-------|-------|
-| `/intake/income` | **Deferred to pre-go-live** (Convex rate-limiter) | Not an M2 deliverable. Duplicates are idempotent; a leaked key is contained by key rotation and Naboopay reconciliation, which rate limiting only slows |
-| `/intake/naboopay` | 120 req/min <!-- assumed --> | Bursty on settlement |
+| `/intake/income` + `/refund` | 60 req/min per source, bursts to 120 (token bucket, `convex/rateLimits.ts`) | Checked after the key, so a caller without a key cannot spend a source's allowance. Over the limit: `429 RATE_LIMITED` + `Retry-After`, nothing written. A leaked key is still contained by key rotation and Naboopay reconciliation, which rate limiting only slows |
+| Bad intake key / bad webhook signature | 30 req/min shared, bursts to 60 | Past the cap: `429` instead of `401` |
+| `/intake/naboopay` | 120 req/min, bursts to 240 | Checked after the signature; a `429` is safe since the webhook writes nothing |
 | Outbound to Naboopay | ≤ 100 req/60 s | Hard limit imposed by Naboopay; sweep paginates |
 | Officer queries/mutations | Convex platform defaults | Small closed user set |
