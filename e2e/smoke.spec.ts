@@ -6,11 +6,13 @@ test.describe("smoke", () => {
     await expect(page.getByRole("heading", { name: /DaLedger/ })).toBeVisible();
     await expect(page.getByText("Held by the SG")).toBeVisible();
     await expect(page.locator('section[aria-label="Accounts"]')).toBeVisible();
-    await expect(page.getByRole("link", { name: /Add transaction/i })).toBeVisible();
+    // The laptop sidebar (hidden on this phone viewport) also has an Add link and a
+    // Sections nav, so scope to the visible one to avoid a strict-mode match of two.
+    await expect(page.getByRole("link", { name: /Add transaction/i }).filter({ visible: true })).toBeVisible();
   });
 
   test("the main sections open", async ({ page }) => {
-    const nav = page.locator('nav[aria-label="Sections"]');
+    const nav = page.locator('nav[aria-label="Sections"]').filter({ visible: true });
     const sections: [RegExp, RegExp][] = [
       [/Needs review/i, /\/review/],
       [/Transactions/i, /\/transactions/],
