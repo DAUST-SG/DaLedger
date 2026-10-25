@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
+import rateLimiter from "@convex-dev/rate-limiter/test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
@@ -19,6 +20,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 async function setup() {
   const t = convexTest(schema, modules);
+  rateLimiter.register(t);
   await t.mutation(internal.seed.accounts, { opening: { naboopay: 0, wave: 50_000, om: 0, cash: 20_000, school: 0 } });
   const userId = await t.run((ctx) => ctx.db.insert("users", { email: "o@daust.sg", role: "officer", active: true }));
   const as = t.withIdentity({ subject: `${userId}|s` });
