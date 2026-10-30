@@ -1,6 +1,6 @@
 import { internalAction, internalMutation } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
-import { createAccount } from "@convex-dev/auth/server";
+import { createAccount, invalidateSessions, modifyAccountCredentials, retrieveAccount } from "@convex-dev/auth/server";
 
 const ACCOUNTS = [
   { key: "naboopay", name: "Naboopay", isSchool: false, automatic: true },
@@ -71,6 +71,26 @@ export const addOfficer = internalAction({
       profile: { email, name: args.name, role: "officer", active: true },
     });
     return user._id;
+  },
+});
+
+/**
+ * Set a new password for an officer who forgot theirs, and sign them out everywhere.
+ * Passwords are stored hashed, so the old one cannot be recovered, only replaced.
+ *   npx convex run seed:resetPassword '{"email":"…","password":"…"}'
+ */
+export const resetPassword = internalAction({
+  args: { email: v.string(), password: v.string() },
+  returns: v.null(),
+  handler: async (ctx, args) => {
+    if (args.password.length < 8) throw new ConvexError("Use a password of at least 8 characters.");
+    const email = args.email.trim().toLowerCase();
+    const { user } = await retrieveAccount(ctx, { provider: "password", account: { id: email } }).catch(() => {
+      throw new ConvexError("No officer with that email.");
+    });
+    await modifyAccountCredentials(ctx, { provider: "password", account: { id: email, secret: args.password } });
+    await invalidateSessions(ctx, { userId: user._id });
+    return null;
   },
 });
 
