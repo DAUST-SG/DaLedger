@@ -12,16 +12,17 @@ DaLedger/
 │   ├── auth.ts                   # currentOfficer() helper, guards
 │   ├── accounts.ts               # account queries, opening-balance seed
 │   ├── balances.ts               # computed-balance live queries
-│   ├── transactions.ts           # create / reverse / markWithdrawalPaid / cancelWithdrawal / recordPayout / list
+│   ├── transactions.ts           # create / reverse / markWithdrawalPaid / cancelWithdrawal / editLabels / list
 │   ├── review.ts                 # needs-review inbox list + count (labelling: transactions.editLabels)
 │   ├── events.ts                 # add / close / reopen events
 │   ├── reconciliations.ts        # create / correctOpening / status (value-based staleness) / history / preview
-│   ├── reports.ts                # term report aggregation query
-│   ├── recurring.ts              # template CRUD + draft generation (v1.1)
-│   ├── naboopay.ts               # Naboopay client: verify, sweep, readBalance
+│   ├── reports.ts                # event view (all time) + term report (movement lines, per account, School, memos, checks, self-check)
+│   ├── recurring.ts              # templates, daily draft generation, confirmDraft / skipDraft, overdue (v1.1)
+│   ├── naboopay.ts               # Naboopay v2 client (GET only), webhook signature check, readBalance action
+│   ├── sweep.ts                  # order + payout sweeps, late-sale lookup, Detected-by-Naboopay query
 │   ├── audit.ts                  # writeAudit() helper + forTransaction history query
 │   ├── http.ts                   # httpRouter: /intake/income(/refund), /intake/naboopay
-│   ├── crons.ts                  # scheduled: safetyNetSweep, monthlyDrafts
+│   ├── crons.ts                  # scheduled: naboopay sweep (15 min), monthlyDrafts (M7)
 │   ├── seed.ts                   # accounts, categories, officers (see DATABASE_SCHEMA.md)
 │   └── ledger.ts                 # pure balance engine + entry rules (unit-tested)
 ├── src/                          # Frontend (React + Vite)
@@ -119,7 +120,6 @@ export const create = mutation(async (ctx, args: CreateTransactionInput): Promis
 export const reverse = mutation(async (ctx, args: { transactionId: string; reason: string }): Promise<{ reversalId: string }> => { /* ADR 0020: no-op if target already has an active reversal */ });
 export const markWithdrawalPaid = mutation(async (ctx, args: { transactionId: string; toAccountId: string }): Promise<{ id: string }> => { /* ADR 0019: guarded committed->paid, no-op otherwise */ });
 export const cancelWithdrawal = mutation(async (ctx, args: { transactionId: string; reason: string }): Promise<{ id: string; changed: boolean }> => { /* ADR 0028: guarded committed->cancelled, no-op otherwise */ });
-export const recordPayout = mutation(async (ctx, args: { fromAccountId: string; toAccountId: string; grossOut: number; netIn: number; reason: string; occurredAt?: number }): Promise<{ transferId: string; feeExpenseId: string | null }> => { /* ADR 0015: net transfer + "Provider fees" expense for (grossOut - netIn) */ });
 export const list = query(async (ctx, args: { filter?: Partial<Record<"accountId"|"categoryId"|"eventId"|"source"|"type", string>>; from?: number; to?: number; cursor?: string }): Promise<PaginatedResponse<Transaction>> => {});
 
 // convex/reports.ts
@@ -267,7 +267,7 @@ App (ConvexProvider, Router)
 5. `http.ts` intake (income + refund) with idempotency (M2).
 6. Review inbox + filters + CSV + Event view (M3).
 7. Reconciliation + audit log (M4).
-8. `naboopay.ts` verify/sweep/balance + webhook route + cron, payout sweep (`GET /payouts`) with manual `recordPayout` as the fallback (net transfer + fee expense), and refund flagging (M5, ADR 0026).
+8. `naboopay.ts` (GET-only client, webhook signature, readBalance) + `sweep.ts` (order and payout sweeps) + webhook route + cron; late sale takes over its placeholder (M5, ADR 0026, 0031, 0032).
 9. `reports.term` + Report page (M6).
 10. `recurring.ts` + cron + Recurring page (M7 / v1.1).
 11. Edge cases: refunds, offline reconnect, empty/loading/error states.

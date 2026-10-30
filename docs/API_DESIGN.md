@@ -65,14 +65,16 @@ The header name `X-Signature` is confirmed by Naboopay's v2 docs. Webhooks are r
 | Events | `events.list` / `events.create` / `events.setActive` | Add, close and reopen events; never delete (ADR 0022) | Session |
 | Create transaction | `transactions.create` (mutation) | Manual income/expense/transfer/allocation/withdrawal/`adjustment_up`/`adjustment_down` | Session |
 | Reverse transaction | `transactions.reverse` (mutation) | Create a `reversalOf` near-copy (same type/category/event, flipped by sign rule); at most one active reversal per target, no-op if already reversed (ADR 0020) | Session |
+| Historical summary | `transactions.createMemo` (mutation) | Pre-cutover event summary, status `memo`: in event/category reports, never in a balance; dated before cutover (ADR 0011) | Session |
 | Mark withdrawal paid | `transactions.markWithdrawalPaid` (mutation) | Guarded `committed` → `paid`, no-op otherwise (ADR 0003, 0019) | Session |
-| Record payout | `transactions.recordPayout` (mutation) | Net transfer + "Provider fees" expense from gross-out/net-in (ADR 0015) | Session |
+| Naboopay balance | `naboopay.readBalance` (action) | The `main` account balance from `GET /accounts`, for the Reconcile screen's "Read from Naboopay" button (read-only) | Session |
+| Detected by Naboopay | `sweep.detected` (query) | Rows the sweep recorded (unreported payments, refunds, fees, payouts) and the last sweep run (ADR 0031, 0032) | Session |
 | Review inbox | `review.list`, `review.count` (queries) | Items with status `needs_review` or `draft`: unlabelled, unmatched, drafts. Labelled with `transactions.editLabels` (ADR 0006) | Session |
 | Reconcile | `reconciliations.create` (mutation) | Record a check; with `adjust`, write an `adjustment_up`/`_down` for `real − computed`, dated at the check (ADR 0001) | Session |
 | Reconciliation status | `reconciliations.status`, `.history`, `.preview` (queries) | Last check per account, value-based staleness (ADR 0010, amended), past checks, computed balance now | Session |
 | Correct opening balance | `reconciliations.correctOpening` (mutation) | Cutover-dated adjustment for the difference; `openingBalance` never changes (ADR 0018) | Session |
 | Transaction history | `audit.forTransaction` (query) | Who, when, action and changed fields for one transaction (ADR 0014) | Session |
-| Review report | `reports.term` (query) | **Period-scoped** (by `occurredAt`) totals by category/event, start/end `balanceAsOf`, full movement reconciliation, School movement, reconciliation history (ADR 0016, 0021) | Session |
+| Review report | `reports.term` (query), `reports.cutover` | **Period-scoped** (by `occurredAt`) totals by category/event, start/end `balanceAsOf`, full movement reconciliation, School movement, reconciliation history (ADR 0016, 0021) | Session |
 
 ## Error Responses
 
@@ -115,7 +117,8 @@ Officer list queries use Convex cursor pagination:
 
 | Category | Limit | Notes |
 |----------|-------|-------|
-| `/intake/income` | **Deferred to pre-go-live** (Convex rate-limiter) | Not an M2 deliverable. Duplicates are idempotent; a leaked key is contained by key rotation and Naboopay reconciliation, which rate limiting only slows |
-| `/intake/naboopay` | 120 req/min <!-- assumed --> | Bursty on settlement |
+| `/intake/income` + `/refund` | 60 req/min per source, bursts to 120 (token bucket, `convex/rateLimits.ts`) | Checked after the key, so a caller without a key cannot spend a source's allowance. Over the limit: `429 RATE_LIMITED` + `Retry-After`, nothing written. A leaked key is still contained by key rotation and Naboopay reconciliation, which rate limiting only slows |
+| Bad intake key / bad webhook signature | 30 req/min shared, bursts to 60 | Past the cap: `429` instead of `401` |
+| `/intake/naboopay` | 120 req/min, bursts to 240 | Checked after the signature; a `429` is safe since the webhook writes nothing |
 | Outbound to Naboopay | ≤ 100 req/60 s | Hard limit imposed by Naboopay; sweep paginates |
 | Officer queries/mutations | Convex platform defaults | Small closed user set |

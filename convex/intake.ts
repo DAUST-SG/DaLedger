@@ -2,7 +2,8 @@ import { internalMutation, type QueryCtx } from "./_generated/server";
 import { ConvexError, v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { writeAudit } from "./audit";
-import { assertAmount, changedFields } from "./ledger";
+import { accountByKey } from "./balances";
+import { assertAmount, assertOccurredAt, changedFields, cutoverOf } from "./ledger";
 import { activeReversal, writeReversal } from "./transactions";
 
 // Step 2 of the category order (ADR 0029). Values pending the Treasurer (PRD §9).
@@ -35,7 +36,8 @@ async function resolveEvent(ctx: QueryCtx, nameOrId?: string): Promise<Id<"event
   return event?.active ? event._id : undefined;
 }
 
-async function findIntake(ctx: QueryCtx, source: string, externalId: string, kind: "income" | "refund") {
+/** The one row keyed (source, externalId, kind): the exactly-once lookup for intake and the sweep (ADR 0005, 0025). */
+export async function findIntake(ctx: QueryCtx, source: string, externalId: string, kind: "income" | "refund") {
   return ctx.db
     .query("transactions")
     .withIndex("by_source_and_externalId_and_kind", (q) =>
@@ -62,10 +64,35 @@ export const recordIncome = internalMutation({
     if (existing) return { id: existing._id, status: existing.status, duplicate: true };
 
     assertAmount(args.amount);
-    const naboopay = await ctx.db.query("accounts").withIndex("by_key", (q) => q.eq("key", "naboopay")).unique();
-    if (!naboopay) throw new Error("The Naboopay account is missing; run seed:accounts.");
+    const naboopay = await accountByKey(ctx, "naboopay");
+    // A sale paid before cutover is already in the opening balance (ADR 0018), as the sweep also assumes.
+    assertOccurredAt(args.paidAt, cutoverOf(naboopay), Date.now());
     const category = await resolveCategory(ctx, args.source, args.category);
     const eventId = await resolveEvent(ctx, args.event);
+
+    // ADR 0031: the sweep already recorded this order as an unreported payment.
+    // With the same amount, that placeholder BECOMES the sale: identity and labels
+    // are filled in, money fields never change, so nothing is counted twice.
+    const placeholder = (
+      await ctx.db.query("transactions").withIndex("by_naboopayReference", (q) => q.eq("naboopayReference", args.naboopayReference)).collect()
+    ).find((t) => t.source === "naboopay" && t.type === "income" && t.kind === "income" && !t.reversalOf);
+    if (placeholder && placeholder.amount === args.amount && !(await activeReversal(ctx, placeholder._id))) {
+      const officerLabelled = placeholder.status === "confirmed";
+      const after = {
+        source: args.source,
+        externalId: args.externalId,
+        reason: args.description.trim(),
+        recordedBy: args.source,
+        // An officer's label on the placeholder wins over the intake's fallback.
+        categoryId: officerLabelled && !category.labelled ? placeholder.categoryId : category.id,
+        eventId: eventId ?? placeholder.eventId,
+        status: officerLabelled || category.labelled ? ("confirmed" as const) : ("needs_review" as const),
+      };
+      const before = Object.fromEntries(Object.keys(after).map((k) => [k, placeholder[k as keyof typeof placeholder]]));
+      await ctx.db.patch(placeholder._id, after);
+      await writeAudit(ctx, { actor: args.source, action: "match", targetId: placeholder._id, ...changedFields(before, after) });
+      return { id: placeholder._id, status: after.status, duplicate: false };
+    }
 
     const doc = {
       type: "income" as const,

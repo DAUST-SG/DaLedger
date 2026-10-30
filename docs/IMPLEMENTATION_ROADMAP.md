@@ -129,12 +129,12 @@
 | 3 | Match by `naboopayReference`; no action on no-match | `feat` | `convex/http.ts` | 📋 |
 | 4 | Safety-net sweep cron: `paid`/`paid_and_blocked`, grace window, dedupe by `order_id`, self-heal; flag `refunded` orders with no reversal (ADR 0008, 0026) | `infra` | `convex/crons.ts` | ⏸ |
 | 5 | Auto-reconcile Naboopay balance via `GET /accounts` | `feat` | `convex/naboopay.ts`, `convex/reconciliations.ts` | ⏸ |
-| 6 | Payout sweep: `GET /payouts` → each completed payout once (idempotent on its `order_id`) as a net transfer + "Provider fees" expense; manual `transactions.recordPayout` as the fallback (ADR 0015, 0026) | `feat` | `convex/transactions.ts`, `src/routes/AddTransaction.tsx` | 📋 |
+| 6 | Payout sweep: `GET /payouts` → each completed payout once as a transfer + "Provider fees" expense (SG wallet) or an uncategorised expense in review (other wallet); no manual `recordPayout` in v1 (ADR 0015, 0032) | `feat` | `convex/sweep.ts` | 📋 |
 
 **Definition of Done:**
 - [ ] Valid signed webhook accepted; tampered body rejected; webhook creates no record.
 - [ ] A paid payment unmatched after the grace window appears once in Needs-review; a `refunded` order with no reversal is flagged once.
-- [ ] A completed Naboopay payout is captured once as a net transfer + a "Provider fees" expense with the reported fee; the manual fallback produces the same pair (ADR 0015, 0026).
+- [ ] A completed Naboopay payout is captured once as a transfer + a "Provider fees" expense with the reported fee (ADR 0015, 0032).
 - [ ] *(Blocked on a valid Naboopay **server API key** (scope `read`) for the sweeps + balance read.)*
 
 ---
@@ -190,7 +190,7 @@
 - [ ] Naboopay webhook matching — Sprint 6
 - [ ] Safety-net sweep — Sprint 6 (⏸ server key)
 - [ ] Auto-reconcile Naboopay balance — Sprint 6 (⏸ server key)
-- [ ] Payout capture (sweep + manual `recordPayout` fallback) — Sprint 6
+- [ ] Payout capture (sweep; no manual `recordPayout` in v1, ADR 0032) — Sprint 6
 - [ ] End-of-term review report — Sprint 7
 - [ ] Offline reconnect (native) — Sprint 7
 - [ ] Recurring expense templates (v1.1) — Sprint 8

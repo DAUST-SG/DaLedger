@@ -12,11 +12,11 @@ the path to production.
 
 ## 0. Ground rules (non-negotiable)
 
-1. **The ADRs are binding.** Every decision in `docs/adr/` (0001–0030) and every
+1. **The ADRs are binding.** Every decision in `docs/adr/` (0001–0032) and every
    term in `CONTEXT.md` is law. Code must match them. If you believe a decision
    is wrong, **do not silently deviate** — raise it with Pikou and, if changed,
-   write a **new superseding ADR** (next free number, e.g. `0029-…`, marking the
-   old one `Superseded by 0031`). The 30 decisions were reached deliberately;
+   write a **new superseding ADR** (next free number, e.g. `0033-…`, marking the
+   old one `Superseded by 0033`). The 32 decisions were reached deliberately;
    they rot the moment someone "just tweaks" the schema.
 2. **Nothing is silent, nothing is deleted, nothing moves money twice, every
    number traces back to an audited entry.** This is the spine of the whole
@@ -57,7 +57,7 @@ identity for `recordedBy` and the audit log).
 
 1. `README.md` — what we're building and the stack.
 2. `CONTEXT.md` — the glossary. Every term here has one canonical meaning.
-3. `docs/adr/` — all 30 ADRs. These are the decisions you must honour.
+3. `docs/adr/` — all 32 ADRs. These are the decisions you must honour.
 4. `docs/PRD.md` — product requirements & acceptance criteria.
 5. `docs/ARCHITECTURE.md` — components & data flows.
 6. `docs/DATABASE_SCHEMA.md` — the authoritative data model (8-status enum, the
@@ -168,7 +168,7 @@ questions; coordinate them early:
   dashboard under Settings → Integration → Webhooks.
 - **Shop & DaBus backend changes**: create transactions with
   `fees_customer_side: true`, persist Naboopay's returned `order_id`, and call
-  `/intake/income` on the transition to `paid` (ADR 0026); retry on 5xx, and treat a
+  `/intake/income` on the transition to `paid` (ADR 0026); retry on 5xx and on 429 (after `Retry-After`), and treat a
   refund `404` as **retryable** (ADR 0005, amended).
 - **Verified opening balances** + a university statement for the School receivable.
 - A **small test budget** (real FCFA) for live testing.

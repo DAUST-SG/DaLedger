@@ -25,13 +25,13 @@ export default function Login() {
   }
 
   return (
-    <main className="min-h-full flex flex-col">
-      <header className="bg-brand text-white px-5 pt-10 pb-8">
+    <main className="min-h-full flex flex-col lg:flex-row">
+      <header className="bg-brand text-white px-5 pt-10 pb-8 lg:w-1/2 lg:flex lg:flex-col lg:justify-center lg:px-16">
         <p className="text-xs uppercase tracking-widest text-white/70">DAUST Student Government</p>
-        <h1 className="mt-1 text-3xl font-bold">DaLedger</h1>
+        <h1 className="mt-1 text-3xl font-bold lg:text-5xl">DaLedger</h1>
         <p className="mt-2 text-white/80">The SG's ledger. Finance officers only.</p>
       </header>
-      <form onSubmit={onSubmit} className="px-5 py-6 flex flex-col gap-4 max-w-md w-full">
+      <form onSubmit={onSubmit} className="px-5 py-6 flex flex-col gap-4 max-w-md w-full lg:m-auto">
         <label className="flex flex-col gap-1.5">
           <span className="text-sm font-medium">Email</span>
           <input

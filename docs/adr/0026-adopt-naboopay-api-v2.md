@@ -4,6 +4,7 @@
 - **Date:** 2026-10-14
 - **Deciders:** Pikou (Lead, IT Committee)
 - **Supersedes:** ADR 0013. **Revises:** ADR 0015. **Amends:** ADR 0005, 0006, 0007.
+- **Revised by:** ADR 0032 (the sweep *records* refunds, wrong-fee fees and payouts instead of flagging them; no manual `recordPayout` in v1) and ADR 0031 (late sale takes over its placeholder)
 
 ## Context
 
@@ -40,11 +41,12 @@ Build against **Naboopay API v2** only. Register webhooks with the **v2 payload*
    `amount` with no per-sale expense. Because v2 reports `fees` and
    `fees_customer_side` per transaction, a payment created with the wrong policy
    is detectable exactly; the sweep flags it for review instead of guessing.
-4. **Payouts are captured from the feed; manual entry is the fallback.** A
-   scheduled sweep reads `GET /payouts` and records each `completed` payout once,
-   idempotent on the payout's `order_id`, using ADR 0015's shape (a transfer of
-   the net amount plus a "Provider fees" expense for the fee). `recordPayout`
-   stays as the manual fallback. The tracker still never creates payouts.
+4. **Payouts are captured from the feed.** A scheduled sweep reads `GET /payouts`
+   and records each `completed` payout once, idempotent on the payout's
+   `order_id`, using ADR 0015's shape (a transfer of the net amount plus a
+   "Provider fees" expense for the fee). *(Superseded by ADR 0032: there is no
+   manual `recordPayout` in v1 — an officer corrects anything the feed misses with
+   an adjustment.)* The tracker still never creates payouts.
 5. **Refunds are detectable in the feed.** A Naboopay transaction that turns
    `refunded` while its income has no reversal is surfaced by the sweep after the
    ADR 0008 grace window, deduped by `order_id`, and self-heals when the source's
@@ -62,8 +64,8 @@ Build against **Naboopay API v2** only. Register webhooks with the **v2 payload*
 - The "we cannot know the fee" problem disappears: fees are exact per
   transaction and per payout.
 - Payout entry moves from manual to automatic, removing the commonest source of
-  Naboopay reconciliation gaps. Manual `recordPayout` remains for anything the
-  feed misses.
+  Naboopay reconciliation gaps. (ADR 0032: no manual `recordPayout` in v1;
+  anything the feed misses is corrected with an adjustment.)
 - The exact sweep mechanics (mapping a payout's destination wallet to the Wave or
   OM account, what a payout to a wallet the SG does not own becomes, and the
   shape of a flagged refund or wrong-fee payment) are settled in the M5 plan,

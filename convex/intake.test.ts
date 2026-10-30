@@ -1,10 +1,26 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
+import rateLimiter from "@convex-dev/rate-limiter/test";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import schema from "./schema";
 import { internal } from "./_generated/api";
 
 const modules = import.meta.glob("./**/*.ts");
+
+// Accounts are created at cutover (ADR 0018) and entries may not predate it, so
+// seed with the clock at CUTOVER, then put it back as the test had it.
+const CUTOVER = Date.UTC(2026, 0, 1);
+async function atCutover<T>(fn: () => Promise<T>): Promise<T> {
+  const fake = vi.isFakeTimers();
+  const now = Date.now();
+  vi.useFakeTimers({ now: CUTOVER, toFake: ["Date"] });
+  try {
+    return await fn();
+  } finally {
+    if (fake) vi.setSystemTime(now);
+    else vi.useRealTimers();
+  }
+}
 const SHOP_KEY = "shop-test-key-0123456789";
 const DABUS_KEY = "dabus-test-key-0123456789";
 
@@ -27,7 +43,8 @@ const sale = (over: Record<string, unknown> = {}) => ({
 
 async function setup() {
   const t = convexTest(schema, modules);
-  await t.mutation(internal.seed.accounts, { opening: { naboopay: 1000, wave: 0, om: 0, cash: 0, school: 0 } });
+  rateLimiter.register(t);
+  await atCutover(() => t.mutation(internal.seed.accounts, { opening: { naboopay: 1000, wave: 0, om: 0, cash: 0, school: 0 } }));
   await t.mutation(internal.seed.addEvent, { name: "Integration Week" });
   const post = (path: string, body: unknown, key: string | null = SHOP_KEY) =>
     t.fetch(path, {
@@ -102,6 +119,11 @@ describe("POST /intake/income", () => {
     ["no naboopayReference", { naboopayReference: undefined }],
     ["no description", { description: "" }],
     ["a bad paidAt", { paidAt: "yesterday" }],
+    ["a blank externalId", { externalId: "   " }],
+    ["a blank naboopayReference", { naboopayReference: " \t " }],
+    ["a blank description", { description: "  " }],
+    ["a paidAt in the future", { paidAt: new Date(Date.now() + 24 * 3600 * 1000).toISOString() }],
+    ["a paidAt before cutover", { paidAt: new Date(CUTOVER - 1).toISOString() }],
   ])("%s is rejected with 422", async (_, over) => {
     const { post, rows } = await setup();
     const res = await post("/intake/income", sale(over));
@@ -218,5 +240,37 @@ describe("POST /intake/income/refund", () => {
   test("a refund needs a valid key too", async () => {
     const { post } = await setup();
     expect((await post("/intake/income/refund", { source: "shop", externalId: "X" }, null)).status).toBe(401);
+  });
+});
+
+describe("rate limits (pre-go-live, CLAUDE.md §4)", () => {
+  // Freeze the clock so the token buckets do not refill mid-test.
+  beforeEach(() => vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] }));
+  afterEach(() => vi.useRealTimers());
+
+  test("past the burst a source gets 429 with Retry-After, and nothing is written", async () => {
+    const { post, rows } = await setup();
+    for (let i = 0; i < 120; i++) expect((await post("/intake/income", sale({ externalId: `B-${i}` }))).status).toBe(201);
+    const res = await post("/intake/income", sale({ externalId: "B-over" }));
+    expect(res.status).toBe(429);
+    expect(Number(res.headers.get("Retry-After"))).toBeGreaterThanOrEqual(1);
+    expect(await res.json()).toMatchObject({ error: { code: "RATE_LIMITED" } });
+    expect(await rows()).toHaveLength(120);
+  });
+
+  test("one source over its limit does not block another; refunds share the allowance", async () => {
+    const { post } = await setup();
+    for (let i = 0; i < 119; i++) await post("/intake/income", sale({ externalId: `S-${i}` }));
+    expect((await post("/intake/income/refund", { source: "shop", externalId: "S-0" })).status).toBe(201);
+    expect((await post("/intake/income/refund", { source: "shop", externalId: "S-1" })).status).toBe(429);
+    expect((await post("/intake/income", sale({ source: "dabus" }), DABUS_KEY)).status).toBe(201);
+  });
+
+  test("bad keys do not spend a source's allowance, and are capped as a whole", async () => {
+    const { post } = await setup();
+    for (let i = 0; i < 60; i++) expect((await post("/intake/income", sale(), "wrong-key-0123456789")).status).toBe(401);
+    expect((await post("/intake/income", sale(), "wrong-key-0123456789")).status).toBe(429);
+    expect((await post("/intake/income", sale(), null)).status).toBe(429);
+    expect((await post("/intake/income", sale())).status).toBe(201);
   });
 });

@@ -12,7 +12,7 @@ Record one confirmed shop/DaBus payment. Idempotent on `(source, externalId, kin
 
 **For the shop and DaBus backends**
 - Call this **only on the transition to `paid`**, never at checkout. There is no "pending" path, so an unpaid order can never appear.
-- Retry on any 5xx or network error. Retries are safe: a repeat returns `200` with `duplicate: true` and creates nothing.
+- Retry on any 5xx, a `429`, or a network error. On `429`, wait at least the `Retry-After` seconds first (ADR 0005, amended). Retries are safe: a repeat returns `200` with `duplicate: true` and creates nothing.
 - **Category:** send `category` if you know it. The tracker uses it if it names an income category, else your source's default, else `Unlabeled` for an officer to label (ADR 0029). A category is never a reason for an error.
 - **Event:** an unknown or closed event name is dropped, not rejected; the sale is still recorded.
 
@@ -23,7 +23,7 @@ Record one confirmed shop/DaBus payment. Idempotent on `(source, externalId, kin
   "source": "shop",                       // required — identified by X-Intake-Key; must match
   "externalId": "ORD-1042",               // required — order/booking id in the source system
   "amount": 253650,                        // required — whole FCFA, positive
-  "paidAt": "2026-10-13T12:04:00Z",       // required — when Naboopay confirmed payment
+  "paidAt": "2026-10-13T12:04:00Z",       // required — when Naboopay confirmed payment; not in the future, not before cutover
   "description": "Hoodie x3 — Integration Week", // required — becomes the reason
   "naboopayReference": "order_9fA…",       // required — Naboopay order_id, for matching
   "category": "Shop sales",                // optional — overrides source default
@@ -57,6 +57,18 @@ Record one confirmed shop/DaBus payment. Idempotent on `(source, externalId, kin
 
 ```json
 { "error": { "code": "UNAUTHORIZED", "message": "Unknown or revoked intake key." } }
+```
+
+**Response (error) — 422 Unprocessable**: a field is missing, blank (whitespace only counts as blank) or invalid, or `paidAt` is more than 10 minutes in the future or before cutover (a pre-cutover sale is already in the opening balance, ADR 0018). Nothing is written; fix the data, do not retry as is.
+
+```json
+{ "error": { "code": "VALIDATION", "message": "That date is before cutover; the opening balance already includes it (ADR 0018)." } }
+```
+
+**Response (error) — 429 Too Many Requests**, with a `Retry-After` header (seconds). Each source may send about 60 requests a minute with bursts up to 120, shared with refunds. Requests with a bad key are capped together (about 30 a minute, bursts up to 60) and then also get 429. Nothing is written; retry after the delay.
+
+```json
+{ "error": { "code": "RATE_LIMITED", "message": "Too many requests. Retry after the Retry-After delay; retries are safe." } }
 ```
 
 ---
@@ -141,6 +153,8 @@ The webhook **creates nothing** (ADR 0008): on a match it confirms, on a non-mat
 { "matched": true, "incomeId": "jd7c8s…" }
 ```
 
+**Not configured — 503** if `NABOOPAY_WEBHOOK_SECRET` is not set on the deployment.
+
 **Response (no match) — 200 OK**
 
 ```json
@@ -152,6 +166,8 @@ The webhook **creates nothing** (ADR 0008): on a match it confirms, on a non-mat
 ```json
 { "error": { "code": "UNAUTHORIZED", "message": "Invalid webhook signature." } }
 ```
+
+**Response (error) — 429 Too Many Requests**, with `Retry-After`: past about 120 signed calls a minute (bursts up to 240), or once the shared cap on bad signatures is spent. Safe, because the webhook writes nothing and the sweep catches up.
 
 ---
 
@@ -196,10 +212,12 @@ Shown as request args → return shape. Called via the Convex client, not REST; 
   "reason": "Catering — Gala",  // required
   "categoryId": "catering",     // required ONLY for income/expense, direction-matched; omit otherwise (ADR 0009)
   "eventId": "gala-2026",       // optional
-  "occurredAt": "2026-10-13T18:00:00Z", // optional, defaults to now
+  "occurredAt": "2026-10-13T18:00:00Z", // optional, defaults to now; not in the future (10 min skew), not before cutover
   "receiptUrl": null             // optional
 }
 ```
+
+The same date window applies to `transactions.reverse`, `transactions.markWithdrawalPaid` and `recurring.confirmDraft` (ADR 0016, 0018).
 
 **Response (success)**
 
@@ -225,6 +243,29 @@ Shown as request args → return shape. Called via the Convex client, not REST; 
 
 ```json
 { "reversalId": "p9x…", "reversalOf": "n4k…" }
+```
+
+Only an entry that counts (`confirmed`, `paid`, `needs_review`) or a `memo` can be reversed. A `draft` is skipped instead (ADR 0012), a `committed` withdrawal is cancelled (ADR 0028), and `skipped`/`cancelled` rows moved no money. A memo's reversal keeps the memo's date, so it nets out in the same period.
+
+### mutation transactions.createMemo
+
+A pre-cutover event summary (ADR 0011): report-only, never in a balance.
+
+```json
+{
+  "type": "income",             // income | expense
+  "amount": 400000,             // positive integer FCFA
+  "reason": "Gala ticket sales, from the 2025 Excel",
+  "categoryId": "fundraising",  // direction-matched
+  "eventId": "gala-2025",       // required, open event
+  "occurredAt": "2025-06-01T12:00:00Z" // required, before cutover
+}
+```
+
+**Response (success)**
+
+```json
+{ "id": "m2q…" }
 ```
 
 ### mutation reconciliations.create

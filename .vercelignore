@@ -1,0 +1,10 @@
+# Never upload local secrets or tooling to Vercel
+.env
+.env.*
+!.env.example
+.claude
+.convex
+node_modules
+dist
+docs/*.pdf
+plan*.pdf

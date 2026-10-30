@@ -93,6 +93,7 @@ export default defineSchema({
     .index("by_reversalOf", ["reversalOf"])
     .index("by_source_and_externalId_and_kind", ["source", "externalId", "kind"])
     .index("by_naboopayReference", ["naboopayReference"])
+    .index("by_source_and_createdAt", ["source", "createdAt"]) // Review's "Detected by Naboopay", newest first
     .index("by_eventId", ["eventId"])
     .index("by_recurringId_and_draftMonth", ["recurringId", "draftMonth"]),
 
@@ -125,6 +126,13 @@ export default defineSchema({
     after: v.optional(v.record(v.string(), v.any())),
     at: v.number(),
   }).index("by_targetId", ["targetId"]),
+
+  // One row per Naboopay sweep run, so Review can show when it last worked (M5).
+  sweepRuns: defineTable({
+    at: v.number(),
+    ok: v.boolean(),
+    message: v.string(),
+  }).index("by_at", ["at"]),
 
   recurringTemplates: defineTable({
     reason: v.string(),

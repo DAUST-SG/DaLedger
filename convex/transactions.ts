@@ -4,7 +4,8 @@ import { paginationOptsValidator, paginationResultValidator } from "convex/serve
 import type { Doc, Id } from "./_generated/dataModel";
 import { currentOfficer } from "./auth";
 import { writeAudit } from "./audit";
-import { changedFields, reversalFlip, validateEntry } from "./ledger";
+import { accountByKey } from "./balances";
+import { assertOccurredAt, changedFields, cutoverOf, LIVE_STATUSES, reversalFlip, validateEntry } from "./ledger";
 import { txStatus, txType } from "./schema";
 
 async function getOrThrow<T extends "accounts" | "categories" | "events" | "transactions">(
@@ -45,10 +46,12 @@ export const create = mutation({
 
     // A withdrawal starts committed, with no payment time yet (ADR 0003).
     const committed = args.type === "school_withdrawal";
+    const occurredAt = committed ? undefined : (args.occurredAt ?? Date.now());
+    if (occurredAt !== undefined) assertOccurredAt(occurredAt, cutoverOf(account, toAccount), Date.now());
     const doc = {
       type: args.type,
       amount: args.amount,
-      occurredAt: committed ? undefined : (args.occurredAt ?? Date.now()),
+      occurredAt,
       accountId: args.accountId,
       toAccountId: args.toAccountId,
       reason: args.reason.trim(),
@@ -67,6 +70,54 @@ export const create = mutation({
   },
 });
 
+/**
+ * A pre-cutover event summary (ADR 0011): status `memo`, so it adds 0 to every
+ * balance yet shows in event and category reports. It is dated before cutover by
+ * definition (the opening balances already hold that money); after cutover the
+ * real entries are recorded instead. Corrected by reversal like any entry.
+ */
+export const createMemo = mutation({
+  args: {
+    type: v.union(v.literal("income"), v.literal("expense")),
+    amount: v.number(),
+    reason: v.string(),
+    categoryId: v.id("categories"),
+    eventId: v.id("events"),
+    occurredAt: v.number(),
+  },
+  returns: v.object({ id: v.id("transactions") }),
+  handler: async (ctx, args) => {
+    const officer = await currentOfficer(ctx);
+    // accountId is required on every row; a memo moves no money on it (ADR 0011).
+    const account = await accountByKey(ctx, "cash");
+    const category = await getOrThrow(ctx, args.categoryId, "category");
+    validateEntry({ type: args.type, amount: args.amount, reason: args.reason, account, toAccount: null, category });
+    const event = await getOrThrow(ctx, args.eventId, "event");
+    if (!event.active) throw new ConvexError(`"${event.name}" no longer accepts new entries.`);
+    if (!Number.isFinite(args.occurredAt) || args.occurredAt >= cutoverOf(account)) {
+      throw new ConvexError("A historical summary is dated before cutover. After cutover, record the real entries instead.");
+    }
+
+    const doc = {
+      type: args.type,
+      amount: args.amount,
+      occurredAt: args.occurredAt,
+      accountId: account._id,
+      reason: args.reason.trim(),
+      categoryId: args.categoryId,
+      eventId: args.eventId,
+      source: "manual",
+      kind: "income" as const,
+      status: "memo" as const,
+      recordedBy: officer._id,
+      createdAt: Date.now(),
+    };
+    const id = await ctx.db.insert("transactions", doc);
+    await writeAudit(ctx, { actor: officer._id, action: "create", targetId: id, after: changedFields({}, doc).after });
+    return { id };
+  },
+});
+
 /** The reversal of `id` that is not itself reversed, if any (ADR 0020). */
 export async function activeReversal(ctx: QueryCtx, id: Id<"transactions">): Promise<Id<"transactions"> | null> {
   const reversals = await ctx.db
@@ -78,6 +129,9 @@ export async function activeReversal(ctx: QueryCtx, id: Id<"transactions">): Pro
   }
   return null;
 }
+
+// Live entries cancel money; a memo reversal corrects a pre-cutover summary in reports (ADR 0011).
+const REVERSIBLE = new Set([...LIVE_STATUSES, "memo"]);
 
 /** Cancel an entry with a near-copy (ADR 0002); at most one active reversal (ADR 0020). */
 export const reverse = mutation({
@@ -93,13 +147,31 @@ export const reverse = mutation({
     if (target.status === "committed") {
       throw new ConvexError("This withdrawal is not paid yet — cancel it instead of reversing (ADR 0028).");
     }
+    // A draft is skipped, not reversed (ADR 0012): its reversal would copy the
+    // `draft` status and sit in the inbox forever while the draft could still
+    // be confirmed. Skipped/cancelled rows moved no money, so nothing to cancel.
+    if (!REVERSIBLE.has(target.status)) {
+      throw new ConvexError(
+        target.status === "draft"
+          ? "A recurring draft is skipped, not reversed (ADR 0012)."
+          : `A ${target.status} entry moved no money, so there is nothing to reverse.`,
+      );
+    }
 
     const existing = await activeReversal(ctx, target._id);
     if (existing) return { reversalId: existing, created: false }; // guarded no-op
 
+    let occurredAt = args.occurredAt ?? Date.now();
+    if (target.status === "memo") {
+      // A memo reversal stays pre-cutover, in the memo's own period, so the report nets it there.
+      occurredAt = target.occurredAt!;
+    } else {
+      const accounts = [await ctx.db.get(target.accountId), target.toAccountId ? await ctx.db.get(target.toAccountId) : null];
+      assertOccurredAt(occurredAt, cutoverOf(...accounts), Date.now());
+    }
     const reversalId = await writeReversal(ctx, target, {
       reason: args.reason.trim(),
-      occurredAt: args.occurredAt ?? Date.now(),
+      occurredAt,
       recordedBy: officer._id,
       source: "manual",
       kind: "income",
@@ -162,9 +234,11 @@ export const markWithdrawalPaid = mutation({
     if (tx.status !== "committed") return { id: tx._id, changed: false };
     const to = await getOrThrow(ctx, args.toAccountId, "destination account");
     if (to.isSchool) throw new ConvexError("A school withdrawal goes to a cash account.");
+    const occurredAt = args.occurredAt ?? Date.now();
+    assertOccurredAt(occurredAt, cutoverOf(await ctx.db.get(tx.accountId), to), Date.now());
 
     const before = { status: tx.status, toAccountId: tx.toAccountId, occurredAt: tx.occurredAt };
-    const after = { status: "paid" as const, toAccountId: args.toAccountId, occurredAt: args.occurredAt ?? Date.now() };
+    const after = { status: "paid" as const, toAccountId: args.toAccountId, occurredAt };
     await ctx.db.patch(tx._id, after);
     await writeAudit(ctx, { actor: officer._id, action: "mark_paid", targetId: tx._id, ...changedFields(before, after) });
     return { id: tx._id, changed: true };
