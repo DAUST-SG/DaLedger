@@ -65,6 +65,7 @@ The header name `X-Signature` is confirmed by Naboopay's v2 docs. Webhooks are r
 | Events | `events.list` / `events.create` / `events.setActive` | Add, close and reopen events; never delete (ADR 0022) | Session |
 | Create transaction | `transactions.create` (mutation) | Manual income/expense/transfer/allocation/withdrawal/`adjustment_up`/`adjustment_down` | Session |
 | Reverse transaction | `transactions.reverse` (mutation) | Create a `reversalOf` near-copy (same type/category/event, flipped by sign rule); at most one active reversal per target, no-op if already reversed (ADR 0020) | Session |
+| Historical summary | `transactions.createMemo` (mutation) | Pre-cutover event summary, status `memo`: in event/category reports, never in a balance; dated before cutover (ADR 0011) | Session |
 | Mark withdrawal paid | `transactions.markWithdrawalPaid` (mutation) | Guarded `committed` → `paid`, no-op otherwise (ADR 0003, 0019) | Session |
 | Naboopay balance | `naboopay.readBalance` (action) | The `main` account balance from `GET /accounts`, for the Reconcile screen's "Read from Naboopay" button (read-only) | Session |
 | Detected by Naboopay | `sweep.detected` (query) | Rows the sweep recorded (unreported payments, refunds, fees, payouts) and the last sweep run (ADR 0031, 0032) | Session |

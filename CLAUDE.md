@@ -15,7 +15,7 @@ the path to production.
 1. **The ADRs are binding.** Every decision in `docs/adr/` (0001–0032) and every
    term in `CONTEXT.md` is law. Code must match them. If you believe a decision
    is wrong, **do not silently deviate** — raise it with Pikou and, if changed,
-   write a **new superseding ADR** (next free number, e.g. `0029-…`, marking the
+   write a **new superseding ADR** (next free number, e.g. `0033-…`, marking the
    old one `Superseded by 0033`). The 32 decisions were reached deliberately;
    they rot the moment someone "just tweaks" the schema.
 2. **Nothing is silent, nothing is deleted, nothing moves money twice, every

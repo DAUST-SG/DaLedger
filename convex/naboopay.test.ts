@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
-import { GRACE_MS } from "./sweep";
+import { BATCH, GRACE_MS, LOOKBACK_MS } from "./sweep";
 
 const modules = import.meta.glob("./**/*.ts");
 const SECRET = "whsec-test-0123456789abcdef";
@@ -127,7 +127,7 @@ describe("webhook /intake/naboopay (ADR 0008)", () => {
 
   test("a matching sale is confirmed, still writing nothing", async () => {
     const { t, rows, sale } = await setup();
-    await sale("ord-1", 5000);
+    await afterCutover(() => sale("ord-1", 5000));
     const res = await post(t, body, await sign(body));
     expect(await res.json()).toMatchObject({ matched: true });
     expect(await rows()).toHaveLength(1);
@@ -182,6 +182,49 @@ describe("order sweep (ADR 0008, 0026)", () => {
       expect(calls.filter((c) => c.includes("status=paid&")).length).toBe(3);
       expect(calls.every((c) => c.startsWith("GET "))).toBe(true); // read-only, never moves money
     });
+  });
+
+  test("more orders than one batch are all recorded, each once", async () => {
+    const { rows, sweep } = await setup();
+    await afterCutover(async () => {
+      const n = 2 * BATCH + 50;
+      fakeNaboopay({ transactions: Array.from({ length: n }, (_, i) => paidOrder(`bulk-${i}`, 100, 2 * HOUR)) });
+      await sweep();
+      await sweep();
+      expect(await rows()).toHaveLength(n);
+    });
+  });
+
+  test("a run reads from the last good run minus the lookback; full: true reads from cutover", async () => {
+    const { t, sweep } = await setup();
+    const cutover = await t.run(async (ctx) => Math.floor((await ctx.db.query("accounts").first())!._creationTime));
+    const since = (calls: string[]) => [...new Set(calls.map((c) => new URL(c.slice(4)).searchParams.get("start_date")))];
+    vi.useFakeTimers({ now: Date.now() + 30 * 24 * HOUR, toFake: ["Date"] });
+    try {
+      let calls = fakeNaboopay({});
+      await sweep(); // first run: nothing to go on, so from cutover
+      expect(since(calls)).toEqual([iso(cutover)]);
+      const firstRunAt = Date.now();
+      vi.setSystemTime(firstRunAt + 20 * 24 * HOUR);
+      calls = fakeNaboopay({});
+      await sweep();
+      expect(since(calls)).toEqual([iso(firstRunAt - LOOKBACK_MS)]);
+      calls = fakeNaboopay({});
+      await t.action(internal.sweep.run, { full: true });
+      expect(since(calls)).toEqual([iso(cutover)]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("a failed run does not move the window forward", async () => {
+    const { t, sweep } = await setup();
+    const cutover = await t.run(async (ctx) => Math.floor((await ctx.db.query("accounts").first())!._creationTime));
+    vi.stubGlobal("fetch", async () => new Response("down", { status: 503 }));
+    await sweep();
+    const calls = fakeNaboopay({});
+    await sweep();
+    expect(new URL(calls[0].slice(4)).searchParams.get("start_date")).toBe(iso(cutover));
   });
 
   test("a late intake sale becomes the placeholder: counted once, inbox clears (ADR 0031)", async () => {

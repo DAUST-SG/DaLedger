@@ -15,7 +15,9 @@ afterEach(() => vi.useRealTimers());
 
 async function setup() {
   const t = convexTest(schema, modules);
+  vi.setSystemTime(at(2026, 10, 1)); // cutover (ADR 0018), before every draft below
   await t.mutation(internal.seed.accounts, { opening: { naboopay: 0, wave: 50_000, om: 0, cash: 20_000, school: 0 } });
+  vi.setSystemTime(CREATED);
   const userId = await t.run((ctx) => ctx.db.insert("users", { email: "o@daust.sg", name: "Awa", role: "officer", active: true }));
   const as = t.withIdentity({ subject: `${userId}|s` });
   const ids = await t.run(async (ctx) => ({
@@ -24,7 +26,11 @@ async function setup() {
   }));
   const template = (day: number, over: Record<string, unknown> = {}) =>
     as.mutation(api.recurring.create, { reason: "Domain renewal", amount: 6_500, accountId: ids.acc.wave, categoryId: ids.cat["Other expense"], dayOfMonth: day, ...over } as never);
-  const run = (now: number) => t.mutation(internal.recurring.generate, { now });
+  // The daily job runs at `now`; keep the clock there so a confirmed draft isn't future-dated.
+  const run = (now: number) => {
+    vi.setSystemTime(Math.max(Date.now(), now));
+    return t.mutation(internal.recurring.generate, { now });
+  };
   const drafts = () => t.run((ctx) => ctx.db.query("transactions").collect());
   const wave = async () => (await as.query(api.balances.list, {})).accounts.find((a) => a.key === "wave")!.balance;
   return { t, as, template, run, drafts, wave, ...ids };
@@ -95,7 +101,7 @@ describe("confirm and skip (ADR 0012, 0019)", () => {
     await run(at(2026, 10, 20));
     const [d] = await drafts();
     expect(await wave()).toBe(50_000);
-    const r1 = await as.mutation(api.recurring.confirmDraft, { transactionId: d._id, amount: 7_200, accountId: acc.cash, categoryId: cat["Supplies"], occurredAt: at(2026, 10, 21) });
+    const r1 = await as.mutation(api.recurring.confirmDraft, { transactionId: d._id, amount: 7_200, accountId: acc.cash, categoryId: cat["Supplies"], occurredAt: at(2026, 10, 19) });
     const r2 = await as.mutation(api.recurring.confirmDraft, { transactionId: d._id, amount: 9_999 });
     expect([r1.changed, r2.changed]).toEqual([true, false]);
     expect(await wave()).toBe(50_000);
@@ -117,6 +123,31 @@ describe("confirm and skip (ADR 0012, 0019)", () => {
     expect((await as.mutation(api.recurring.skipDraft, { transactionId: d._id, reason: "again" })).changed).toBe(false);
     expect(await wave()).toBe(50_000);
     expect(await as.query(api.review.count, {})).toBe(0);
+  });
+
+  test("a draft is skipped, never reversed: no stuck inbox row, no money (ADR 0012)", async () => {
+    const { as, template, run, drafts, wave } = await setup();
+    await template(20);
+    await run(at(2026, 10, 20));
+    const [d] = await drafts();
+    await expect(as.mutation(api.transactions.reverse, { transactionId: d._id, reason: "not needed" })).rejects.toThrow(/skipped, not reversed/);
+    expect(await drafts()).toHaveLength(1);
+    expect(await as.query(api.review.count, {})).toBe(1);
+    expect(await wave()).toBe(50_000);
+  });
+
+  test("a draft that was reversed (legacy data) can't be confirmed into money", async () => {
+    const { t, as, template, run, drafts, wave } = await setup();
+    await template(20);
+    await run(at(2026, 10, 20));
+    const [d] = await drafts();
+    // As reverse() used to write it: a `draft` copy pointing at the draft.
+    await t.run(async (ctx) => {
+      const { _id, _creationTime, recurringId, draftMonth, ...rest } = d;
+      await ctx.db.insert("transactions", { ...rest, reversalOf: _id, reason: "oops" });
+    });
+    await expect(as.mutation(api.recurring.confirmDraft, { transactionId: d._id })).rejects.toThrow(/reversed/);
+    expect(await wave()).toBe(50_000);
   });
 
   test("drafts sit in the inbox; overdue counts only past due days", async () => {

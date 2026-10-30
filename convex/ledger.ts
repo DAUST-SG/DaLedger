@@ -61,6 +61,27 @@ export function assertAmount(amount: number): void {
   }
 }
 
+/** Clock skew allowed on an entry's date (officer devices, partner servers). */
+export const FUTURE_SKEW_MS = 10 * 60 * 1000;
+
+/** Cutover for an entry: the latest creation time of the accounts it touches (ADR 0018). */
+export function cutoverOf(...accounts: (Pick<Doc<"accounts">, "_creationTime"> | null | undefined)[]): number {
+  return Math.max(...accounts.map((a) => (a ? Math.floor(a._creationTime) : -Infinity)));
+}
+
+/**
+ * An entry's date must sit inside the ledger (ADR 0016, 0018). A future date is
+ * left out of a check computed now, so reconciling books a false adjustment; a
+ * date before cutover adds to an opening balance that already holds that money.
+ */
+export function assertOccurredAt(at: number, cutover: number, now: number): void {
+  if (!Number.isFinite(at)) throw new ConvexError("Give the date the money moved.");
+  if (at > now + FUTURE_SKEW_MS) throw new ConvexError("That date is in the future. Use the date the money actually moved.");
+  if (at < cutover) {
+    throw new ConvexError("That date is before cutover; the opening balance already includes it (ADR 0018).");
+  }
+}
+
 type Account = Pick<Doc<"accounts">, "_id" | "isSchool">;
 type Category = Pick<Doc<"categories">, "name" | "direction">;
 

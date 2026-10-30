@@ -1,16 +1,31 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
 const modules = import.meta.glob("./**/*.ts");
+
+// Accounts are created at cutover (ADR 0018) and entries may not predate it, so
+// seed with the clock at CUTOVER, then put it back as the test had it.
+const CUTOVER = Date.UTC(2026, 0, 1);
+async function atCutover<T>(fn: () => Promise<T>): Promise<T> {
+  const fake = vi.isFakeTimers();
+  const now = Date.now();
+  vi.useFakeTimers({ now: CUTOVER, toFake: ["Date"] });
+  try {
+    return await fn();
+  } finally {
+    if (fake) vi.setSystemTime(now);
+    else vi.useRealTimers();
+  }
+}
 const DAY = 24 * 3600 * 1000;
 
 async function setup() {
   const t = convexTest(schema, modules);
-  await t.mutation(internal.seed.accounts, { opening: { naboopay: 0, wave: 10_000, om: 0, cash: 85_000, school: 100_000 } });
+  await atCutover(() => t.mutation(internal.seed.accounts, { opening: { naboopay: 0, wave: 10_000, om: 0, cash: 85_000, school: 100_000 } }));
   const userId = await t.run((ctx) => ctx.db.insert("users", { email: "o@daust.sg", name: "Awa", role: "officer", active: true }));
   const as = t.withIdentity({ subject: `${userId}|s` });
   const ids = await t.run(async (ctx) => ({
@@ -73,10 +88,24 @@ describe("reconciliations.create (ADR 0001, 0004)", () => {
 describe("staleness (ADR 0010, value-based per M4 Q1)", () => {
   test("a fresh check holds; an entry dated after it doesn't change that", async () => {
     const { as, acc, statusOf, expense } = await setup();
-    await as.mutation(api.reconciliations.create, { accountId: acc.cash, realBalance: 85_000, adjust: false });
-    expect((await statusOf(acc.cash)).stale).toBe(false);
-    await expense(acc.cash, 500, Date.now() + DAY);
-    expect((await statusOf(acc.cash)).stale).toBe(false);
+    vi.useFakeTimers({ now: Date.now(), toFake: ["Date"] });
+    try {
+      await as.mutation(api.reconciliations.create, { accountId: acc.cash, realBalance: 85_000, adjust: false });
+      expect((await statusOf(acc.cash)).stale).toBe(false);
+      vi.setSystemTime(Date.now() + DAY);
+      await expense(acc.cash, 500, Date.now());
+      expect((await statusOf(acc.cash)).stale).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("an entry can't be dated in the future or before cutover (ADR 0016, 0018)", async () => {
+    const { acc, expense, balance } = await setup();
+    await expect(expense(acc.cash, 500, Date.now() + DAY)).rejects.toThrow(/future/);
+    await expect(expense(acc.cash, 500, CUTOVER - 1)).rejects.toThrow(/before cutover/);
+    await expense(acc.cash, 500, CUTOVER);
+    expect(await balance("cash")).toBe(84_500);
   });
 
   test("a back-dated entry makes it stale; a new check clears it", async () => {

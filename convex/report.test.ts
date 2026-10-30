@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 import { convexTest } from "convex-test";
-import { describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -10,9 +10,14 @@ const DAY = 24 * 3600 * 1000;
 const SEP1 = Date.UTC(2030, 8, 1); // the term starts well after seeding (cutover)
 const DEC31 = Date.UTC(2030, 11, 31, 23, 59, 59, 999);
 
+afterEach(() => vi.useRealTimers());
+
 async function setup() {
   const t = convexTest(schema, modules);
+  // Cutover (ADR 0018) is well before the term; "now" is after it, so no entry is future-dated.
+  vi.useFakeTimers({ now: Date.UTC(2030, 0, 1), toFake: ["Date"] });
   await t.mutation(internal.seed.accounts, { opening: { naboopay: 100_000, wave: 50_000, om: 0, cash: 20_000, school: 300_000 } });
+  vi.setSystemTime(Date.UTC(2031, 5, 1));
   const userId = await t.run((ctx) => ctx.db.insert("users", { email: "o@daust.sg", name: "Awa", role: "officer", active: true }));
   const as = t.withIdentity({ subject: `${userId}|s` });
   const ids = await t.run(async (ctx) => ({
@@ -146,5 +151,56 @@ describe("term report (ADR 0016, 0021)", () => {
     const r = await s.report(now - DAY, now + DAY);
     expect(r.checks).toEqual([expect.objectContaining({ accountName: "Cash", difference: 0, adjusted: false })]);
     await expect(s.report(DEC31, SEP1)).rejects.toThrow(/before the end/);
+  });
+});
+
+describe("historical summaries (memo, ADR 0011)", () => {
+  const CUTOVER = Date.UTC(2030, 0, 1); // setup() seeds the accounts here
+  const Y2029 = { from: Date.UTC(2029, 0, 1), to: Date.UTC(2029, 11, 31) };
+
+  test("a memo shows in the event view and its period's report, never in a balance", async () => {
+    const s = await setup();
+    const { id: gala } = await s.as.mutation(api.events.create, { name: "2029 Gala" });
+    await s.as.mutation(api.transactions.createMemo, {
+      type: "income", amount: 40_000, reason: "Gala ticket sales (Excel)", categoryId: s.cat["Fundraising"], eventId: gala, occurredAt: Date.UTC(2029, 5, 1),
+    });
+    await s.as.mutation(api.transactions.createMemo, {
+      type: "expense", amount: 15_000, reason: "Gala venue (Excel)", categoryId: s.cat["Venue"], eventId: gala, occurredAt: Date.UTC(2029, 5, 1),
+    });
+    const balances = await s.as.query(api.balances.list, {});
+    expect(balances.totalHeld).toBe(100_000 + 50_000 + 0 + 20_000);
+    expect(await s.as.query(api.reports.event, { eventId: gala })).toMatchObject({ income: 40_000, expense: 15_000, net: 25_000 });
+    const r = await s.report(Y2029.from, Y2029.to);
+    expect(r.memos.map((m) => m.amount).sort()).toEqual([15_000, 40_000]);
+    expect(r.byEvent).toEqual([expect.objectContaining({ name: "2029 Gala", memoNet: 25_000, net: 0 })]);
+    expect(r.total.lines.income).toBe(0);
+  });
+
+  test("a memo must predate cutover, carry a matching category and an open event", async () => {
+    const s = await setup();
+    const { id: gala } = await s.as.mutation(api.events.create, { name: "Gala" });
+    const memo = (o: Record<string, unknown>) =>
+      s.as.mutation(api.transactions.createMemo, {
+        type: "income", amount: 1_000, reason: "x", categoryId: s.cat["Fundraising"], eventId: gala, occurredAt: CUTOVER - DAY, ...o,
+      } as never);
+    await expect(memo({ occurredAt: CUTOVER })).rejects.toThrow(/before cutover/);
+    await expect(memo({ categoryId: s.cat["Venue"] })).rejects.toThrow(/not an income category/);
+    await expect(memo({ amount: 10.5 })).rejects.toThrow(/whole/);
+    await s.as.mutation(api.events.setActive, { eventId: gala, active: false });
+    await expect(memo({})).rejects.toThrow(/no longer accepts/);
+  });
+
+  test("reversing a memo nets it to zero in its own period", async () => {
+    const s = await setup();
+    const { id: gala } = await s.as.mutation(api.events.create, { name: "Gala" });
+    const at = Date.UTC(2029, 5, 1);
+    const { id } = await s.as.mutation(api.transactions.createMemo, {
+      type: "income", amount: 40_000, reason: "typo", categoryId: s.cat["Fundraising"], eventId: gala, occurredAt: at,
+    });
+    const { reversalId } = await s.as.mutation(api.transactions.reverse, { transactionId: id, reason: "wrong figure" });
+    const reversal = await s.t.run((ctx) => ctx.db.get(reversalId));
+    expect(reversal).toMatchObject({ status: "memo", occurredAt: at });
+    expect((await s.as.query(api.reports.event, { eventId: gala })).income).toBe(0);
+    expect((await s.report(Y2029.from, Y2029.to)).byEvent[0].memoNet).toBe(0);
   });
 });

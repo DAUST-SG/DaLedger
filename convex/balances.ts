@@ -4,6 +4,13 @@ import type { Doc } from "./_generated/dataModel";
 import { currentOfficer } from "./auth";
 import { effect, reversalFlip } from "./ledger";
 
+/** A seeded account by its key; a missing one is a deployment error, not bad input. */
+export async function accountByKey(ctx: QueryCtx, key: Doc<"accounts">["key"]): Promise<Doc<"accounts">> {
+  const account = await ctx.db.query("accounts").withIndex("by_key", (q) => q.eq("key", key)).unique();
+  if (!account) throw new Error(`The ${key} account is missing; run seed:accounts.`);
+  return account;
+}
+
 /**
  * balanceAsOf(X, date) = openingBalance(X) + Σ effect(t, X) for t.occurredAt ≤ date
  * (ADR 0007, 0016). With no date, every transaction counts.

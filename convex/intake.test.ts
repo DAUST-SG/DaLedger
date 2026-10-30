@@ -6,6 +6,21 @@ import schema from "./schema";
 import { internal } from "./_generated/api";
 
 const modules = import.meta.glob("./**/*.ts");
+
+// Accounts are created at cutover (ADR 0018) and entries may not predate it, so
+// seed with the clock at CUTOVER, then put it back as the test had it.
+const CUTOVER = Date.UTC(2026, 0, 1);
+async function atCutover<T>(fn: () => Promise<T>): Promise<T> {
+  const fake = vi.isFakeTimers();
+  const now = Date.now();
+  vi.useFakeTimers({ now: CUTOVER, toFake: ["Date"] });
+  try {
+    return await fn();
+  } finally {
+    if (fake) vi.setSystemTime(now);
+    else vi.useRealTimers();
+  }
+}
 const SHOP_KEY = "shop-test-key-0123456789";
 const DABUS_KEY = "dabus-test-key-0123456789";
 
@@ -29,7 +44,7 @@ const sale = (over: Record<string, unknown> = {}) => ({
 async function setup() {
   const t = convexTest(schema, modules);
   rateLimiter.register(t);
-  await t.mutation(internal.seed.accounts, { opening: { naboopay: 1000, wave: 0, om: 0, cash: 0, school: 0 } });
+  await atCutover(() => t.mutation(internal.seed.accounts, { opening: { naboopay: 1000, wave: 0, om: 0, cash: 0, school: 0 } }));
   await t.mutation(internal.seed.addEvent, { name: "Integration Week" });
   const post = (path: string, body: unknown, key: string | null = SHOP_KEY) =>
     t.fetch(path, {
@@ -104,6 +119,11 @@ describe("POST /intake/income", () => {
     ["no naboopayReference", { naboopayReference: undefined }],
     ["no description", { description: "" }],
     ["a bad paidAt", { paidAt: "yesterday" }],
+    ["a blank externalId", { externalId: "   " }],
+    ["a blank naboopayReference", { naboopayReference: " \t " }],
+    ["a blank description", { description: "  " }],
+    ["a paidAt in the future", { paidAt: new Date(Date.now() + 24 * 3600 * 1000).toISOString() }],
+    ["a paidAt before cutover", { paidAt: new Date(CUTOVER - 1).toISOString() }],
   ])("%s is rejected with 422", async (_, over) => {
     const { post, rows } = await setup();
     const res = await post("/intake/income", sale(over));

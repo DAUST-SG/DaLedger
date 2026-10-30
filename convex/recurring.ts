@@ -3,7 +3,8 @@ import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { currentOfficer } from "./auth";
 import { writeAudit } from "./audit";
-import { changedFields, validateEntry } from "./ledger";
+import { assertOccurredAt, changedFields, cutoverOf, validateEntry } from "./ledger";
+import { activeReversal } from "./transactions";
 
 // Recurring expense drafts (ADR 0012). Dates are UTC: Dakar is UTC+0.
 const DAY = 24 * 3600 * 1000;
@@ -178,6 +179,9 @@ export const confirmDraft = mutation({
     const officer = await currentOfficer(ctx);
     const tx = await draftOrThrow(ctx, args.transactionId);
     if (tx.status !== "draft") return { changed: false };
+    // Defence in depth: a draft with a reversal (only possible from data written
+    // before reverse() refused drafts) must not start counting money.
+    if (await activeReversal(ctx, tx._id)) throw new ConvexError("This draft was reversed; skip it instead.");
 
     const after = {
       amount: args.amount ?? tx.amount,
@@ -190,6 +194,7 @@ export const confirmDraft = mutation({
     const category = after.categoryId ? await ctx.db.get(after.categoryId) : null;
     if (!account) throw new ConvexError("Unknown account.");
     validateEntry({ type: "expense", amount: after.amount, reason: tx.reason, account, toAccount: null, category });
+    if (after.occurredAt !== undefined) assertOccurredAt(after.occurredAt, cutoverOf(account), Date.now());
 
     const before = { amount: tx.amount, occurredAt: tx.occurredAt, accountId: tx.accountId, categoryId: tx.categoryId, status: tx.status };
     await ctx.db.patch(tx._id, after);

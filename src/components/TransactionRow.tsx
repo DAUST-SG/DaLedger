@@ -63,6 +63,7 @@ export default function TransactionRow(props: { row: Row; names: ReturnType<type
     row.status === "needs_review" && { text: row.categoryId && names.category.get(row.categoryId) !== "Unlabeled" ? "Needs a category" : "Needs a label", tone: "text-warn" },
     overdue && { text: "Overdue", tone: "text-loss" },
     row.status === "cancelled" && { text: "Cancelled", tone: "text-muted" },
+    row.status === "memo" && { text: "Pre-cutover summary, not in balances", tone: "text-muted" },
     row.reversed && { text: "Reversed", tone: "text-muted" },
     row.source !== "manual" && row.source !== "recurring" && { text: row.source === "naboopay" ? "From Naboopay" : `From ${row.source}`, tone: "text-muted" },
   ].filter(Boolean) as { text: string; tone: string }[];
@@ -149,7 +150,8 @@ function RowActions(props: { row: Row; onDone: () => void }) {
 
   const hasCategory = (row.type === "income" || row.type === "expense") && !row.reversalOf;
   const canRetag = !row.reversalOf;
-  const canReverse = !row.reversed && row.status !== "committed" && row.status !== "cancelled";
+  // Mirrors transactions.reverse: only entries that count, or a memo (ADR 0002, 0011, 0012).
+  const canReverse = !row.reversed && ["confirmed", "paid", "needs_review", "memo"].includes(row.status);
   const categories = catalog?.categories.filter((c) => c.direction === row.type) ?? [];
   // A closed event stays selectable only if it is already the row's tag (ADR 0022).
   const events = catalog?.events ?? [];

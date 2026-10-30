@@ -1,4 +1,5 @@
 import { httpRouter } from "convex/server";
+import { ConvexError } from "convex/values";
 import { httpAction, type ActionCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { auth } from "./auth";
@@ -55,12 +56,17 @@ function text(body: Record<string, unknown>, field: string, required: true): str
 function text(body: Record<string, unknown>, field: string, required: false): string | undefined;
 function text(body: Record<string, unknown>, field: string, required: boolean) {
   const value = body[field];
-  if (value === undefined || value === null || value === "") {
+  if (value !== undefined && value !== null && (typeof value !== "string" || value.length > 500)) {
+    throw new Invalid(`"${field}" must be text (up to 500 characters).`);
+  }
+  // Trim before the required check: "  " must not become an empty externalId,
+  // which would make every later blank id a silent duplicate.
+  const trimmed = value?.trim();
+  if (!trimmed) {
     if (required) throw new Invalid(`"${field}" is required.`);
     return undefined;
   }
-  if (typeof value !== "string" || value.length > 500) throw new Invalid(`"${field}" must be text (up to 500 characters).`);
-  return value.trim();
+  return trimmed;
 }
 
 async function guarded(run: () => Promise<Response>): Promise<Response> {
@@ -68,6 +74,8 @@ async function guarded(run: () => Promise<Response>): Promise<Response> {
     return await run();
   } catch (err) {
     if (err instanceof Invalid) return fail("VALIDATION", err.message);
+    // A rule the ledger enforces (amount, date window, reason length): fix the data, don't retry.
+    if (err instanceof ConvexError) return fail("VALIDATION", String(err.data));
     console.error("intake failed", err);
     return fail("SERVER_ERROR", "Unexpected failure. Retry later; retries are safe.");
   }

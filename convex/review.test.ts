@@ -7,6 +7,21 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
 const modules = import.meta.glob("./**/*.ts");
+
+// Accounts are created at cutover (ADR 0018) and entries may not predate it, so
+// seed with the clock at CUTOVER, then put it back as the test had it.
+const CUTOVER = Date.UTC(2026, 0, 1);
+async function atCutover<T>(fn: () => Promise<T>): Promise<T> {
+  const fake = vi.isFakeTimers();
+  const now = Date.now();
+  vi.useFakeTimers({ now: CUTOVER, toFake: ["Date"] });
+  try {
+    return await fn();
+  } finally {
+    if (fake) vi.setSystemTime(now);
+    else vi.useRealTimers();
+  }
+}
 const KEY = "shop-test-key-0123456789";
 const DAY = 24 * 3600 * 1000;
 const T0 = Date.UTC(2026, 9, 1);
@@ -21,7 +36,7 @@ afterEach(() => vi.unstubAllEnvs());
 async function setup() {
   const t = convexTest(schema, modules);
   rateLimiter.register(t);
-  await t.mutation(internal.seed.accounts, { opening: { naboopay: 0, wave: 50_000, om: 0, cash: 20_000, school: 0 } });
+  await atCutover(() => t.mutation(internal.seed.accounts, { opening: { naboopay: 0, wave: 50_000, om: 0, cash: 20_000, school: 0 } }));
   const userId = await t.run((ctx) => ctx.db.insert("users", { email: "o@daust.sg", role: "officer", active: true }));
   const as = t.withIdentity({ subject: `${userId}|s` });
   const ids = await t.run(async (ctx) => ({

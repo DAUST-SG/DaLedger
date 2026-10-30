@@ -175,6 +175,8 @@ the home screen; never hard-blocked.
 CREATE UNIQUE INDEX idx_tx_source_external_kind ON transactions(source, externalId, kind);
 -- Naboopay feed matching
 CREATE INDEX idx_tx_naboopay_ref ON transactions(naboopayReference);
+-- Review's "Detected by Naboopay": the newest sweep rows, without reading them all
+CREATE INDEX idx_tx_source_created ON transactions(source, createdAt);
 -- Balance computation per account
 CREATE INDEX idx_tx_account_occurred ON transactions(accountId, occurredAt);
 -- Review inbox

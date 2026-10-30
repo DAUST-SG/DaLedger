@@ -5,11 +5,19 @@ import type { Doc } from "./_generated/dataModel";
 import { currentOfficer } from "./auth";
 import { writeAudit } from "./audit";
 import { changedFields } from "./ledger";
+import { accountByKey } from "./balances";
+import { findIntake } from "./intake";
 import { listPayouts, listTransactions } from "./naboopay";
 import { activeReversal, listRow, toRow, writeReversal } from "./transactions";
 
 // ADR 0008: only orders older than this are treated as unreported; tunable.
 export const GRACE_MS = 30 * 60 * 1000;
+// Each run re-reads this far behind the last good run, so late refunds, a few
+// failed runs or clock drift are still caught, while the work stays bounded
+// instead of growing with every order since cutover.
+export const LOOKBACK_MS = 7 * 24 * 3600 * 1000;
+// Orders/payouts per write: keeps each mutation well inside Convex's limits.
+export const BATCH = 100;
 const SOURCE = "naboopay";
 
 const order = v.object({
@@ -34,15 +42,27 @@ const payout = v.object({
 const ms = (iso?: string) => (iso ? Date.parse(iso) : undefined);
 const digits = (phone?: string) => (phone ?? "").replace(/\D/g, "");
 
-/** Cutover = the Naboopay account's creation, whole ms (M4). Nothing older is swept. */
+/**
+ * Cutover = the Naboopay account's creation, whole ms (M4). Nothing older is swept.
+ * `since` = where this run starts reading: LOOKBACK_MS before the last good run,
+ * or cutover when there is none yet (or a full run is asked for).
+ */
 export const context = internalQuery({
-  args: {},
-  returns: v.union(v.object({ cutover: v.number() }), v.null()),
-  handler: async (ctx) => {
+  args: { full: v.boolean() },
+  returns: v.union(v.object({ cutover: v.number(), since: v.number() }), v.null()),
+  handler: async (ctx, args) => {
     const naboopay = await ctx.db.query("accounts").withIndex("by_key", (q) => q.eq("key", "naboopay")).unique();
-    return naboopay ? { cutover: Math.floor(naboopay._creationTime) } : null;
+    if (!naboopay) return null;
+    const cutover = Math.floor(naboopay._creationTime);
+    const lastOk = args.full
+      ? null
+      : await ctx.db.query("sweepRuns").withIndex("by_at").order("desc").filter((q) => q.eq(q.field("ok"), true)).first();
+    return { cutover, since: lastOk ? Math.max(cutover, lastOk.at - LOOKBACK_MS) : cutover };
   },
 });
+
+const chunks = <T>(items: T[]): T[][] =>
+  Array.from({ length: Math.ceil(items.length / BATCH) }, (_, i) => items.slice(i * BATCH, (i + 1) * BATCH));
 
 /** The sale for an order id, for the webhook's confirmation (it writes nothing). */
 export const findSale = internalQuery({
@@ -54,17 +74,22 @@ export const findSale = internalQuery({
   },
 });
 
-/** Every 15 minutes (crons.ts). Reads Naboopay, writes through the mutations below. */
+/**
+ * Every 15 minutes (crons.ts). Reads Naboopay from `since`, writes through the
+ * mutations below in batches; every write is idempotent, so a batch that fails
+ * is simply redone by the next run. `full: true` re-reads from cutover:
+ * `npx convex run sweep:run '{"full": true}'` after a long outage.
+ */
 export const run = internalAction({
-  args: {},
+  args: { full: v.optional(v.boolean()) },
   returns: v.null(),
-  handler: async (ctx) => {
+  handler: async (ctx, args) => {
     const record = (ok: boolean, message: string) => ctx.runMutation(internal.sweep.recordRun, { ok, message });
     if (!process.env.NABOOPAY_API_KEY) {
       await record(false, "Skipped: NABOOPAY_API_KEY is not set on this deployment.");
       return null;
     }
-    const c = await ctx.runQuery(internal.sweep.context, {});
+    const c = await ctx.runQuery(internal.sweep.context, { full: args.full ?? false });
     if (!c) {
       await record(false, "Skipped: accounts are not seeded yet.");
       return null;
@@ -72,10 +97,10 @@ export const run = internalAction({
     try {
       const now = Date.now();
       const [paid, blocked, refunded, payouts] = await Promise.all([
-        listTransactions("paid", c.cutover),
-        listTransactions("paid_and_blocked", c.cutover),
-        listTransactions("refunded", c.cutover),
-        listPayouts(c.cutover),
+        listTransactions("paid", c.since),
+        listTransactions("paid_and_blocked", c.since),
+        listTransactions("refunded", c.since),
+        listPayouts(c.since),
       ]);
       const toOrder = (t: (typeof paid)[number]) => ({
         order_id: t.order_id,
@@ -85,25 +110,32 @@ export const run = internalAction({
         paidAt: ms(t.paid_at),
         updatedAt: ms(t.updated_at) ?? now,
       });
-      const o = await ctx.runMutation(internal.sweep.applyOrders, {
-        now,
-        cutover: c.cutover,
-        paid: [...paid, ...blocked].map(toOrder),
-        refunded: refunded.map(toOrder),
-      });
-      const p = await ctx.runMutation(internal.sweep.applyPayouts, {
-        cutover: c.cutover,
-        payouts: payouts.map((x) => ({
-          order_id: x.order_id,
-          amount: x.amount,
-          fees: x.fees ?? 0,
-          method: x.selected_payment_method,
-          phone: x.recipient?.phone,
-          name: [x.recipient?.first_name, x.recipient?.last_name].filter(Boolean).join(" ") || undefined,
-          reason: x.reason || undefined,
-          paidAt: ms(x.paid_at),
-        })),
-      });
+      const o = { placeholders: 0, refunds: 0, fees: 0 };
+      // Paid before refunded, so a refund in this run finds the placeholder it reverses.
+      const orderBatches = [
+        ...chunks([...paid, ...blocked].map(toOrder)).map((batch) => ({ paid: batch, refunded: [] })),
+        ...chunks(refunded.map(toOrder)).map((batch) => ({ paid: [], refunded: batch })),
+      ];
+      for (const batch of orderBatches) {
+        const r = await ctx.runMutation(internal.sweep.applyOrders, { now, cutover: c.cutover, ...batch });
+        o.placeholders += r.placeholders;
+        o.refunds += r.refunds;
+        o.fees += r.fees;
+      }
+      const p = { recorded: 0 };
+      const payoutRows = payouts.map((x) => ({
+        order_id: x.order_id,
+        amount: x.amount,
+        fees: x.fees ?? 0,
+        method: x.selected_payment_method,
+        phone: x.recipient?.phone,
+        name: [x.recipient?.first_name, x.recipient?.last_name].filter(Boolean).join(" ") || undefined,
+        reason: x.reason || undefined,
+        paidAt: ms(x.paid_at),
+      }));
+      for (const batch of chunks(payoutRows)) {
+        p.recorded += (await ctx.runMutation(internal.sweep.applyPayouts, { cutover: c.cutover, payouts: batch })).recorded;
+      }
       await record(
         true,
         `Read ${paid.length + blocked.length} paid, ${refunded.length} refunded, ${payouts.length} payouts. ` +
@@ -125,23 +157,12 @@ export const recordRun = internalMutation({
   },
 });
 
-async function findSwept(ctx: QueryCtx, externalId: string, kind: "income" | "refund") {
-  return ctx.db
-    .query("transactions")
-    .withIndex("by_source_and_externalId_and_kind", (q) => q.eq("source", SOURCE).eq("externalId", externalId).eq("kind", kind))
-    .first();
-}
+const findSwept = (ctx: QueryCtx, externalId: string, kind: "income" | "refund") => findIntake(ctx, SOURCE, externalId, kind);
 
 /** The sale for an order, whoever reported it (intake or a placeholder): not a reversal. */
 export async function saleFor(ctx: QueryCtx, orderId: string) {
   const rows = await ctx.db.query("transactions").withIndex("by_naboopayReference", (q) => q.eq("naboopayReference", orderId)).collect();
   return rows.find((t) => t.type === "income" && !t.reversalOf) ?? null;
-}
-
-async function account(ctx: QueryCtx, key: Doc<"accounts">["key"]) {
-  const a = await ctx.db.query("accounts").withIndex("by_key", (q) => q.eq("key", key)).unique();
-  if (!a) throw new Error(`The ${key} account is missing; run seed:accounts.`);
-  return a;
 }
 
 async function category(ctx: QueryCtx, name: string) {
@@ -167,7 +188,7 @@ export const applyOrders = internalMutation({
   args: { now: v.number(), cutover: v.number(), paid: v.array(order), refunded: v.array(order) },
   returns: v.object({ placeholders: v.number(), refunds: v.number(), fees: v.number() }),
   handler: async (ctx, args) => {
-    const naboopay = await account(ctx, "naboopay");
+    const naboopay = await accountByKey(ctx, "naboopay");
     const unlabeled = await category(ctx, "Unlabeled");
     const providerFees = await category(ctx, "Provider fees");
     let placeholders = 0, refunds = 0, fees = 0;
@@ -236,7 +257,7 @@ export const applyPayouts = internalMutation({
   args: { cutover: v.number(), payouts: v.array(payout) },
   returns: v.object({ recorded: v.number() }),
   handler: async (ctx, args) => {
-    const naboopay = await account(ctx, "naboopay");
+    const naboopay = await accountByKey(ctx, "naboopay");
     const providerFees = await category(ctx, "Provider fees");
     const wallets = sgWallets();
     let recorded = 0;
@@ -248,7 +269,7 @@ export const applyPayouts = internalMutation({
       if (await findSwept(ctx, key, "income")) continue;
 
       const ownKey = wallets.get(digits(p.phone));
-      const to = ownKey ? await account(ctx, ownKey) : null;
+      const to = ownKey ? await accountByKey(ctx, ownKey) : null;
       const who = p.name ? `${p.name} (${p.phone ?? "?"})` : (p.phone ?? "unknown wallet");
       const note = p.reason ? `: ${p.reason}` : "";
       if (to) {
@@ -289,11 +310,11 @@ export const detected = query({
   handler: async (ctx) => {
     await currentOfficer(ctx);
     const last = await ctx.db.query("sweepRuns").withIndex("by_at").order("desc").first();
-    const rows = await ctx.db
+    const recent = await ctx.db
       .query("transactions")
-      .withIndex("by_source_and_externalId_and_kind", (q) => q.eq("source", SOURCE))
-      .collect();
-    const recent = rows.sort((a, b) => b.createdAt - a.createdAt).slice(0, 30);
+      .withIndex("by_source_and_createdAt", (q) => q.eq("source", SOURCE))
+      .order("desc")
+      .take(30);
     return {
       lastRun: last ? { at: last.at, ok: last.ok, message: last.message } : null,
       rows: await Promise.all(recent.map((t) => toRow(ctx, t))),
